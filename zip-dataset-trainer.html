@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1220">
+  <title>ZIP Dataset Trainer</title>
+  <style>
+    :root{--bg:#08111d;--panel:#0f172a;--panel2:#111827;--line:#243247;--text:#e5edf8;--muted:#9fb0c8;--acc:#60a5fa;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(circle at top,#13223b,#08111d 45%,#050b14 100%);color:var(--text)}
+    .wrap{max-width:1240px;margin:0 auto;padding:18px}
+    .hero,.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 40px rgba(0,0,0,.28)}
+    .hero{padding:18px;margin-bottom:16px}
+    .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}
+    .card{padding:16px}
+    h1{margin:0 0 8px;font-size:1.8rem}
+    h2{margin:0 0 10px;font-size:1.05rem}
+    p{margin:0;color:var(--muted);line-height:1.5}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    input[type=text],input[type=number],input[type=file],button{border-radius:12px;border:1px solid var(--line);background:#0c1526;color:var(--text);padding:12px 14px;font:inherit}
+    input[type=text],input[type=number]{width:100%}
+    button{cursor:pointer;font-weight:700}
+    button.primary{background:linear-gradient(180deg,#67b0ff,#4c8df0);color:#08111d;border:none}
+    button.ghost{background:transparent}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .small{font-size:.92rem;color:var(--muted)}
+    .status{font-weight:800}.ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}
+    .metric{padding:12px;border:1px solid var(--line);border-radius:14px;background:#0b1425}.metric .k{font-size:1.2rem;font-weight:800}.metric .l{color:var(--muted);font-size:.84rem}
+    table{width:100%;border-collapse:collapse} th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;font-size:.92rem;vertical-align:top}
+    .log{background:#050b14;border:1px solid var(--line);border-radius:12px;padding:12px;min-height:180px;white-space:pre-wrap;overflow:auto;color:#c9d6e8}
+    .pill{display:inline-flex;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:.86rem;background:#0b1425}
+    .cat-card{border:1px solid var(--line);border-radius:14px;padding:12px;background:#0b1425}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    @media (max-width: 920px){.grid,.two,.three{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <h1>ZIP Dataset Trainer</h1>
+    <p>Crea un clasificador de imágenes para móvil sin Google Drive. Añades categorías, subes un ZIP por categoría con estructura <span class="mono">train/</span>, <span class="mono">test/</span> y opcionalmente <span class="mono">validation/</span>, entrenas en el navegador sobre MobileNet y descargas un modelo TensorFlow.js listo para tus otras apps.</p>
+    <div class="row" style="margin-top:12px">
+      <span class="pill">Base: MobileNet</span>
+      <span class="pill">Entrenamiento en navegador</span>
+      <span class="pill">Salida: model.json + weights.bin + labels.json</span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>1. Categorías y ZIPs</h2>
+      <p class="small">Añade una categoría, escribe su nombre y selecciona un ZIP. Puedes repetir el proceso para todas las clases.</p>
+      <div class="row" style="margin-top:12px">
+        <button id="addCategoryBtn" class="primary">Añadir categoría</button>
+        <button id="scanBtn">Escanear ZIPs</button>
+      </div>
+      <div id="categories" style="display:grid;gap:10px;margin-top:12px"></div>
+
+      <div style="margin-top:16px">
+        <table>
+          <thead><tr><th>Categoría</th><th>Train</th><th>Test</th><th>Validation</th></tr></thead>
+          <tbody id="classTable"><tr><td colspan="4" class="small">Sin categorías todavía.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <aside class="card">
+      <h2>Estado</h2>
+      <div id="status" class="status warn">Pendiente de categorías.</div>
+      <p id="substatus" class="small" style="margin-top:6px">Añade categorías y sube ZIPs.</p>
+      <div class="three" style="margin-top:12px">
+        <div class="metric"><div id="mClasses" class="k">0</div><div class="l">Clases</div></div>
+        <div class="metric"><div id="mTrain" class="k">0</div><div class="l">Imágenes train</div></div>
+        <div class="metric"><div id="mEval" class="k">0</div><div class="l">Imágenes eval</div></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="grid" style="margin-top:16px">
+    <section class="card">
+      <h2>2. Entrenamiento</h2>
+      <div class="three">
+        <div><label class="small">Épocas</label><input id="epochs" type="number" min="1" max="100" value="12"></div>
+        <div><label class="small">Batch size</label><input id="batchSize" type="number" min="1" max="128" value="16"></div>
+        <div><label class="small">Learning rate</label><input id="learningRate" type="text" value="0.001"></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="trainBtn" class="primary">Entrenar modelo</button>
+        <button id="downloadBtn">Descargar modelo</button>
+      </div>
+      <p class="small" style="margin-top:10px">Si existe <span class="mono">validation/</span>, se usará para evaluación. Si no, se usará <span class="mono">test/</span>.</p>
+    </section>
+
+    <aside class="card">
+      <h2>3. Registro</h2>
+      <pre id="log" class="log"></pre>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+<script>
+const state = { categories: [], dataset: null, mobilenet: null, classifier: null, labels: [], trained: false };
+const els = {
+  addCategoryBtn: document.getElementById('addCategoryBtn'), scanBtn: document.getElementById('scanBtn'), trainBtn: document.getElementById('trainBtn'), downloadBtn: document.getElementById('downloadBtn'),
+  categories: document.getElementById('categories'), classTable: document.getElementById('classTable'), status: document.getElementById('status'), substatus: document.getElementById('substatus'),
+  mClasses: document.getElementById('mClasses'), mTrain: document.getElementById('mTrain'), mEval: document.getElementById('mEval'), log: document.getElementById('log'),
+  epochs: document.getElementById('epochs'), batchSize: document.getElementById('batchSize'), learningRate: document.getElementById('learningRate')
+};
+
+function appendLog(msg){ const ts = new Date().toLocaleTimeString(); els.log.textContent += `[${ts}] ${msg}\n`; els.log.scrollTop = els.log.scrollHeight; console.log(msg); }
+function setStatus(text, cls='warn', sub=''){ els.status.className = `status ${cls}`; els.status.textContent = text; els.substatus.textContent = sub; }
+function updateMetrics(dataset){ const classes = dataset ? Object.keys(dataset.classes).length : 0; let train = 0, evalN = 0; if(dataset){ for(const c of Object.values(dataset.classes)){ train += c.train.length; evalN += (c.validation.length || c.test.length); } } els.mClasses.textContent = classes; els.mTrain.textContent = train; els.mEval.textContent = evalN; }
+function normalizeName(name){ return (name || '').trim(); }
+function imageEntry(name){ return /\.(jpg|jpeg|png|webp)$/i.test(name || ''); }
+
+function addCategoryRow(name='', file=null){
+  const idx = crypto.randomUUID();
+  const wrap = document.createElement('div');
+  wrap.className = 'cat-card';
+  wrap.dataset.id = idx;
+  wrap.innerHTML = `
+    <div class="two">
+      <div>
+        <label class="small">Nombre de categoría</label>
+        <input type="text" class="cat-name" placeholder="ej. vespa_velutina" value="${name.replace(/"/g,'&quot;')}">
+      </div>
+      <div>
+        <label class="small">ZIP de la categoría</label>
+        <input type="file" class="cat-zip" accept=".zip,application/zip">
+      </div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="ghost remove-btn">Eliminar</button>
+      <span class="small zip-label">Sin ZIP seleccionado.</span>
+    </div>`;
+  els.categories.appendChild(wrap);
+  const zipInput = wrap.querySelector('.cat-zip');
+  const zipLabel = wrap.querySelector('.zip-label');
+  const removeBtn = wrap.querySelector('.remove-btn');
+  if(file){ const dt = new DataTransfer(); dt.items.add(file); zipInput.files = dt.files; zipLabel.textContent = file.name; }
+  zipInput.addEventListener('change', () => { zipLabel.textContent = zipInput.files[0] ? zipInput.files[0].name : 'Sin ZIP seleccionado.'; });
+  removeBtn.addEventListener('click', () => { wrap.remove(); rebuildCategoryState(); renderClassTable(null); updateMetrics(null); setStatus('Categoría eliminada', 'ok', 'Puedes seguir añadiendo o escanear de nuevo.'); });
+}
+
+function rebuildCategoryState(){
+  state.categories = Array.from(els.categories.querySelectorAll('.cat-card')).map(card => ({
+    id: card.dataset.id,
+    name: normalizeName(card.querySelector('.cat-name').value),
+    file: card.querySelector('.cat-zip').files[0] || null
+  }));
+}
+
+async function parseCategoryZip(category){
+  const zip = await JSZip.loadAsync(category.file);
+  const files = { train: [], test: [], validation: [] };
+  for(const [path, entry] of Object.entries(zip.files)){
+    if(entry.dir) continue;
+    if(!imageEntry(path)) continue;
+    const clean = path.replace(/^\/+/, '');
+    const parts = clean.split('/').filter(Boolean);
+    let split = null;
+    let startIndex = 0;
+    if(parts.length >= 2 && ['train','test','validation','valid'].includes(parts[0].toLowerCase())){
+      split = parts[0].toLowerCase();
+      startIndex = 1;
+    } else if(parts.length >= 3 && ['train','test','validation','valid'].includes(parts[1].toLowerCase())){
+      split = parts[1].toLowerCase();
+      startIndex = 2;
+    } else {
+      continue;
+    }
+    const section = split === 'valid' ? 'validation' : split;
+    const fileName = parts.slice(startIndex).join('/');
+    files[section].push({ entry, path: clean, name: fileName || parts[parts.length - 1] });
+  }
+  return files;
+}
+
+async function scanZips(){
+  rebuildCategoryState();
+  const valid = state.categories.filter(c => c.name && c.file);
+  if(!valid.length) throw new Error('Añade al menos una categoría con nombre y ZIP.');
+  setStatus('Escaneando ZIPs…', 'warn', 'Leyendo estructura train/test/validation.');
+  appendLog('Escaneando ZIPs de categorías...');
+  const dataset = { classes: {} };
+  for(const category of valid){
+    appendLog(`Abriendo ZIP de ${category.name}...`);
+    const files = await parseCategoryZip(category);
+    dataset.classes[category.name] = files;
+    appendLog(`  ${category.name}: train=${files.train.length}, test=${files.test.length}, validation=${files.validation.length}`);
+  }
+  state.dataset = dataset;
+  state.labels = Object.keys(dataset.classes);
+  renderClassTable(dataset);
+  updateMetrics(dataset);
+  setStatus('ZIPs escaneados', 'ok', `Se han encontrado ${state.labels.length} categorías.`);
+}
+
+function renderClassTable(dataset){
+  if(!dataset || !Object.keys(dataset.classes).length){ els.classTable.innerHTML = '<tr><td colspan="4" class="small">Sin categorías todavía.</td></tr>'; return; }
+  els.classTable.innerHTML = Object.entries(dataset.classes).map(([label, info]) => `<tr><td>${label}</td><td>${info.train.length}</td><td>${info.test.length}</td><td>${info.validation.length}</td></tr>`).join('');
+}
+
+function blobToImage(blob){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Error cargando imagen del ZIP.')); };
+    img.src = url;
+  });
+}
+
+async function ensureMobilenet(){ if(!state.mobilenet){ appendLog('Cargando MobileNet base...'); state.mobilenet = await mobilenet.load({version: 2, alpha: 1.0}); appendLog('MobileNet listo.'); } }
+
+async function buildDatasetTensors(dataset){
+  await ensureMobilenet();
+  const labels = Object.keys(dataset.classes);
+  const trainEmbeddings = [], trainLabels = [], evalEmbeddings = [], evalLabels = [];
+  for(let classIndex = 0; classIndex < labels.length; classIndex++){
+    const label = labels[classIndex];
+    const info = dataset.classes[label];
+    appendLog(`Procesando clase ${label}...`);
+    for(const file of info.train){
+      const img = await blobToImage(await file.entry.async('blob'));
+      const emb = tf.tidy(() => state.mobilenet.infer(img, true));
+      trainEmbeddings.push(emb); trainLabels.push(classIndex);
+    }
+    const evalFiles = info.validation.length ? info.validation : info.test;
+    for(const file of evalFiles){
+      const img = await blobToImage(await file.entry.async('blob'));
+      const emb = tf.tidy(() => state.mobilenet.infer(img, true));
+      evalEmbeddings.push(emb); evalLabels.push(classIndex);
+    }
+  }
+  if(!trainEmbeddings.length) throw new Error('No hay imágenes de train.');
+  if(!evalEmbeddings.length) throw new Error('No hay imágenes de evaluación (validation o test).');
+  const xTrain = tf.concat(trainEmbeddings), xEval = tf.concat(evalEmbeddings);
+  trainEmbeddings.forEach(t => t.dispose()); evalEmbeddings.forEach(t => t.dispose());
+  const yTrain = tf.oneHot(tf.tensor1d(trainLabels, 'int32'), labels.length);
+  const yEval = tf.oneHot(tf.tensor1d(evalLabels, 'int32'), labels.length);
+  return { xTrain, yTrain, xEval, yEval, labels };
+}
+
+async function trainModel(){
+  if(!state.dataset) throw new Error('Primero escanea los ZIPs.');
+  const labels = Object.keys(state.dataset.classes);
+  if(labels.length < 2) throw new Error('Necesitas al menos 2 categorías.');
+  setStatus('Preparando entrenamiento…', 'warn', 'Calculando embeddings MobileNet.');
+  const { xTrain, yTrain, xEval, yEval, labels: finalLabels } = await buildDatasetTensors(state.dataset);
+  state.labels = finalLabels;
+  const lr = Number(els.learningRate.value), epochs = Number(els.epochs.value), batchSize = Number(els.batchSize.value);
+  const model = tf.sequential();
+  model.add(tf.layers.dense({ inputShape: [xTrain.shape[1]], units: 128, activation: 'relu' }));
+  model.add(tf.layers.dropout({ rate: 0.2 }));
+  model.add(tf.layers.dense({ units: finalLabels.length, activation: 'softmax' }));
+  model.compile({ optimizer: tf.train.adam(lr), loss: 'categoricalCrossentropy', metrics: ['accuracy'] });
+  setStatus('Entrenando…', 'warn', `Épocas: ${epochs}, batch: ${batchSize}`);
+  await model.fit(xTrain, yTrain, {
+    epochs, batchSize, shuffle: true, validationData: [xEval, yEval],
+    callbacks: { onEpochEnd: async (epoch, logs) => { appendLog(`Epoch ${epoch + 1}/${epochs} · loss=${(logs.loss || 0).toFixed(4)} · acc=${(logs.acc || logs.accuracy || 0).toFixed(4)} · val_acc=${(logs.val_acc || logs.val_accuracy || 0).toFixed(4)}`); await tf.nextFrame(); } }
+  });
+  const evalOut = model.evaluate(xEval, yEval, { batchSize });
+  const arr = Array.isArray(evalOut) ? evalOut : [evalOut];
+  const vals = await Promise.all(arr.map(async t => (await t.data())[0]));
+  appendLog(`Evaluación final · loss=${vals[0].toFixed(4)} · acc=${(vals[1] || 0).toFixed(4)}`);
+  xTrain.dispose(); yTrain.dispose(); xEval.dispose(); yEval.dispose(); arr.forEach(t => t.dispose());
+  state.classifier = model; state.trained = true;
+  setStatus('Modelo entrenado', 'ok', 'Ya puedes descargarlo.');
+}
+
+function downloadLabelsJson(labels){ const blob = new Blob([JSON.stringify({ labels }, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'labels.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+async function downloadModel(){ if(!state.classifier || !state.trained) throw new Error('Primero entrena el modelo.'); setStatus('Descargando modelo…', 'warn', 'El navegador descargará model.json y weights.bin.'); await state.classifier.save('downloads://zip-dataset-model'); downloadLabelsJson(state.labels); setStatus('Modelo descargado', 'ok', 'Guarda juntos model.json, weights.bin y labels.json.'); }
+
+els.addCategoryBtn.addEventListener('click', () => addCategoryRow());
+els.scanBtn.addEventListener('click', async () => { try { await scanZips(); } catch (e) { setStatus('Error escaneando', 'err', e.message); appendLog(e.message); } });
+els.trainBtn.addEventListener('click', async () => { try { await trainModel(); } catch (e) { setStatus('Error entrenando', 'err', e.message); appendLog(e.message); } });
+els.downloadBtn.addEventListener('click', async () => { try { await downloadModel(); } catch (e) { setStatus('Error descargando', 'err', e.message); appendLog(e.message); } });
+window.addEventListener('load', () => { addCategoryRow(); updateMetrics(null); });
+</script>
+</body>
+</html>
