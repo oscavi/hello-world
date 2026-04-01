@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#08111d">
+  <title>Vision Detect Ultra</title>
+  <style>
+    :root{--bg:#07111f;--panel:#0f172a;--panel2:#111827;--line:#243247;--text:#e5edf8;--muted:#9fb0c8;--acc:#60a5fa;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;--violet:#8b5cf6;--cyan:#22d3ee}
+    *{box-sizing:border-box} body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(circle at top,#13223b,#08111d 45%,#050b14 100%);color:var(--text)}
+    .wrap{max-width:1320px;margin:0 auto;padding:18px}.hero,.card{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 40px rgba(0,0,0,.28)} .hero{padding:18px;margin-bottom:16px}.card{padding:16px}
+    h1{margin:0 0 8px;font-size:1.85rem} h2{margin:0 0 10px;font-size:1.05rem} p{margin:0;color:var(--muted);line-height:1.5}
+    .grid{display:grid;grid-template-columns:1.12fr .88fr;gap:16px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}.four{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+    input[type=text],input[type=number],input[type=file],button,select{border-radius:12px;border:1px solid var(--line);background:#0c1526;color:var(--text);padding:12px 14px;font:inherit}
+    input[type=text],input[type=number],select{width:100%} button{cursor:pointer;font-weight:700}.primary{background:linear-gradient(180deg,#67b0ff,#4c8df0);color:#08111d;border:none}.violet{background:linear-gradient(180deg,#a78bfa,#8b5cf6);color:#fff;border:none}.ghost{background:transparent}.danger{background:linear-gradient(180deg,#ff8b8b,#ef4444);color:#fff;border:none} button:disabled{opacity:.55;cursor:not-allowed}
+    .small{font-size:.92rem;color:var(--muted)} .status{font-weight:800}.ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)} .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .pill{display:inline-flex;padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);font-size:.86rem;background:#0b1425}
+    .metric{padding:12px;border:1px solid var(--line);border-radius:14px;background:#0b1425}.metric .k{font-size:1.2rem;font-weight:800}.metric .l{color:var(--muted);font-size:.84rem}
+    .viewer{position:relative;width:100%;min-height:340px;background:linear-gradient(180deg,#06101d,#081321);border:1px solid var(--line);border-radius:18px;overflow:hidden;display:flex;align-items:center;justify-content:center}.viewer.empty::before{content:'Abre la cámara o carga una imagen';color:var(--muted);font-size:.98rem}
+    #video,#preview{display:block;background:#000;max-width:100%;max-height:75vh;margin:auto;width:100%;height:auto;object-fit:contain} #overlay{position:absolute;inset:0;pointer-events:none}
+    .list{display:grid;gap:10px}.item{padding:12px;border:1px solid var(--line);border-radius:14px;background:#0a1424}.top{display:flex;justify-content:space-between;gap:8px}.bar{height:10px;border-radius:999px;background:#13213a;overflow:hidden;margin-top:6px}.bar>span{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--violet));width:0%}
+    .log{background:#050b14;border:1px solid var(--line);border-radius:12px;padding:12px;min-height:180px;white-space:pre-wrap;overflow:auto;color:#c9d6e8}
+    .note{padding:12px;border:1px dashed var(--line);border-radius:14px;background:#0a1424;color:var(--muted);margin-top:12px}
+    @media (max-width:980px){.grid,.two,.three,.four{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <section class="hero">
+    <h1>Vision Detect Ultra</h1>
+    <p>Detección en tiempo real para móvil y navegador. Incluye COCO-SSD con varias bases, selector de cámara, carga de imagen estática, límites de FPS, umbral de confianza y opción para cargar un detector externo en formato TensorFlow.js GraphModel si luego exportas uno propio.</p>
+    <div class="row" style="margin-top:12px">
+      <span class="pill">Tiempo real</span>
+      <span class="pill">Cajas alineadas</span>
+      <span class="pill">Selector frontal/trasera</span>
+      <span class="pill">Modelo externo</span>
+      <span class="pill">Optimizado para móvil</span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="card">
+      <h2>Visor</h2>
+      <div class="row" style="margin-bottom:10px">
+        <select id="modelType">
+          <option value="coco_lite">COCO-SSD Lite</option>
+          <option value="coco_v1">COCO-SSD MobileNet v1</option>
+          <option value="coco_v2">COCO-SSD MobileNet v2</option>
+          <option value="external_graph">GraphModel externo</option>
+        </select>
+        <input id="modelUrl" type="text" placeholder="URL model.json detector externo" style="display:none;min-width:280px">
+        <button id="loadModelBtn" class="primary">Cargar modelo</button>
+        <button id="startBtn" class="primary">Abrir cámara</button>
+        <button id="switchBtn">Cambiar cámara</button>
+        <button id="stopBtn" class="ghost">Cerrar cámara</button>
+        <input id="imageFile" type="file" accept="image/*" style="max-width:240px">
+        <button id="detectImageBtn">Analizar imagen</button>
+      </div>
+      <div id="viewer" class="viewer empty">
+        <video id="video" playsinline muted style="display:none"></video>
+        <img id="preview" alt="Vista previa" style="display:none">
+        <canvas id="overlay"></canvas>
+      </div>
+      <div class="four" style="margin-top:12px">
+        <div class="metric"><div id="mModel" class="k">—</div><div class="l">Modelo</div></div>
+        <div class="metric"><div id="mMode" class="k">—</div><div class="l">Modo</div></div>
+        <div class="metric"><div id="mCount" class="k">0</div><div class="l">Objetos</div></div>
+        <div class="metric"><div id="mFps" class="k">—</div><div class="l">FPS</div></div>
+      </div>
+      <div class="three" style="margin-top:12px">
+        <div><label class="small">Umbral confianza</label><input id="threshold" type="number" min="0.05" max="0.95" step="0.05" value="0.35"></div>
+        <div><label class="small">Máximo FPS</label><input id="maxFps" type="number" min="1" max="30" step="1" value="8"></div>
+        <div><label class="small">Top máximo</label><input id="maxBoxes" type="number" min="1" max="50" step="1" value="20"></div>
+      </div>
+      <div class="note">Para un detector externo, la app espera un GraphModel con una salida tipo clasificación por cajas ya adaptada o una salida tensorial que luego tendrás que mapear. COCO-SSD funciona directo y es la opción recomendada para móvil.</div>
+    </section>
+
+    <aside class="card">
+      <h2>Estado</h2>
+      <div id="status" class="status warn">Selecciona un modelo y pulsa cargar.</div>
+      <p id="substatus" class="small" style="margin-top:6px">Después abre la cámara o sube una imagen.</p>
+      <h2 style="margin-top:16px">Detecciones</h2>
+      <div id="results" class="list"><div class="small">Todavía no hay resultados.</div></div>
+      <h2 style="margin-top:16px">Registro</h2>
+      <pre id="log" class="log"></pre>
+    </aside>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+<script>
+const state = { model:null, modelType:'coco_lite', loading:false, stream:null, facingMode:'environment', mode:'idle', imageUrl:null, running:false, rafId:0, lastProcessTime:0, lastFpsTs:performance.now(), frameCounter:0, displayedFps:0, smoothed:new Map() };
+const palette = ['#66d9ff','#7cffc2','#ffd166','#ff8fab','#c5a3ff','#5eead4','#fca5a5','#93c5fd','#86efac','#fcd34d'];
+const els = { modelType, modelUrl, loadModelBtn, startBtn, switchBtn, stopBtn, imageFile, detectImageBtn, video, preview, overlay, viewer, mModel, mMode, mCount, mFps, threshold, maxFps, maxBoxes, status, substatus, results, log };
+function appendLog(msg){ const ts=new Date().toLocaleTimeString(); els.log.textContent += `[${ts}] ${msg}\n`; els.log.scrollTop=els.log.scrollHeight; console.log(msg); }
+function setStatus(text, cls='warn', sub=''){ els.status.className=`status ${cls}`; els.status.textContent=text; els.substatus.textContent=sub; }
+function modelLabel(){ return {coco_lite:'COCO-SSD Lite', coco_v1:'COCO-SSD v1', coco_v2:'COCO-SSD v2', external_graph:'GraphModel externo'}[state.modelType] || state.modelType; }
+function updateMetrics(count=0){ els.mModel.textContent=modelLabel(); els.mMode.textContent=state.mode==='live'?'Vídeo':state.mode==='image'?'Imagen':'—'; els.mCount.textContent=String(count); els.mFps.textContent=state.mode==='live'?String(state.displayedFps||0):'—'; }
+function clearOverlay(){ const ctx=els.overlay.getContext('2d'); ctx.clearRect(0,0,els.overlay.width,els.overlay.height); }
+function stopLoop(){ state.running=false; if(state.rafId) cancelAnimationFrame(state.rafId); state.rafId=0; }
+function updateModelUrlVisibility(){ els.modelUrl.style.display = els.modelType.value === 'external_graph' ? 'inline-flex' : 'none'; }
+function getDisplayedMediaRect(){ const src = state.mode==='live' ? els.video : els.preview; const cw=src.clientWidth||0, ch=src.clientHeight||0; const nw=state.mode==='live' ? (src.videoWidth||cw) : (src.naturalWidth||cw); const nh=state.mode==='live' ? (src.videoHeight||ch) : (src.naturalHeight||ch); if(!cw||!ch||!nw||!nh) return null; const scale=Math.min(cw/nw, ch/nh); const drawW=nw*scale, drawH=nh*scale; return {offsetX:(cw-drawW)/2, offsetY:(ch-drawH)/2, scaleX:drawW/nw, scaleY:drawH/nh}; }
+function resizeOverlay(){ const src = state.mode==='live' ? els.video : els.preview; const w=src.clientWidth||0, h=src.clientHeight||0; els.overlay.width=w; els.overlay.height=h; els.overlay.style.width=w+'px'; els.overlay.style.height=h+'px'; clearOverlay(); }
+function showViewer(mode){ els.video.style.display = mode==='live' ? 'block':'none'; els.preview.style.display = mode==='image' ? 'block':'none'; els.viewer.classList.remove('empty'); resizeOverlay(); }
+async function loadScript(src, timeoutMs=18000){ return new Promise((resolve,reject)=>{ const existing=document.querySelector(`script[data-src="${src}"]`); if(existing){ resolve(); return; } appendLog(`Intentando cargar script: ${src}`); const s=document.createElement('script'); s.src=src; s.async=true; s.dataset.src=src; let done=false; const timer=setTimeout(()=>{ if(done) return; done=true; s.remove(); reject(new Error(`Timeout cargando ${src}`)); }, timeoutMs); s.onload=()=>{ if(done) return; done=true; clearTimeout(timer); appendLog(`Script cargado: ${src}`); resolve(); }; s.onerror=()=>{ if(done) return; done=true; clearTimeout(timer); s.remove(); reject(new Error(`Error cargando ${src}`)); }; document.head.appendChild(s); }); }
+async function ensureTf(){ if(!window.tf) throw new Error('TensorFlow.js no disponible'); try{ await tf.setBackend('webgl'); }catch(_){} await tf.ready(); appendLog(`Backend TensorFlow: ${tf.getBackend()}`); }
+async function loadModel(){ if(state.loading) return; state.loading=true; state.model=null; state.modelType=els.modelType.value; state.smoothed.clear(); setStatus('Cargando modelo…','warn',modelLabel()); try{ await ensureTf(); if(state.modelType.startsWith('coco_')){ await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js'); if(!window.cocoSsd) throw new Error('COCO-SSD no disponible'); const base = state.modelType==='coco_lite' ? 'lite_mobilenet_v2' : state.modelType==='coco_v1' ? 'mobilenet_v1' : 'mobilenet_v2'; state.model = await cocoSsd.load({base}); } else { const url = els.modelUrl.value.trim(); if(!url) throw new Error('Indica la URL del model.json'); state.model = await tf.loadGraphModel(url); } updateMetrics(0); setStatus('Modelo listo','ok',modelLabel()); appendLog(`Modelo cargado: ${modelLabel()}`); } catch(e){ setStatus('Error cargando modelo','err',e.message); appendLog(e.message); } finally { state.loading=false; } }
+function smoothBox(key,bbox){ const prev=state.smoothed.get(key); if(!prev){ state.smoothed.set(key,bbox.slice()); return bbox; } const alpha=0.55; const next=bbox.map((v,i)=>prev[i]*(1-alpha)+v*alpha); state.smoothed.set(key,next); return next; }
+function drawBoxes(boxes){ resizeOverlay(); const rect=getDisplayedMediaRect(); if(!rect) return; const ctx=els.overlay.getContext('2d'); ctx.clearRect(0,0,els.overlay.width,els.overlay.height); ctx.textBaseline='top'; ctx.lineJoin='round'; ctx.font='600 14px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'; const fresh=new Set(); boxes.forEach((b,idx)=>{ const key=`${b.label}-${idx}`; fresh.add(key); const raw=[b.x,b.y,b.w,b.h]; const box = state.mode==='live' ? smoothBox(key, raw) : raw; const [x,y,w,h]=box; const dx=rect.offsetX+x*rect.scaleX, dy=rect.offsetY+y*rect.scaleY, dw=w*rect.scaleX, dh=h*rect.scaleY; const color=palette[idx%palette.length]; const pct=Math.round((b.score||0)*100); const label=`${b.label} ${pct}%`; ctx.strokeStyle=color; ctx.lineWidth=3; ctx.strokeRect(dx,dy,dw,dh); const tw=Math.ceil(ctx.measureText(label).width); const lh=24; const lx=Math.max(0, Math.min(dx, els.overlay.width-tw-16)); const ly=Math.max(0, dy-lh-4); ctx.fillStyle=color; ctx.fillRect(lx,ly,tw+16,lh); ctx.fillStyle='#04101d'; ctx.fillText(label,lx+8,ly+4); }); for(const k of Array.from(state.smoothed.keys())) if(!fresh.has(k)) state.smoothed.delete(k); }
+function renderResults(items){ els.results.innerHTML=''; if(!items.length){ els.results.innerHTML='<div class="small">No se han detectado objetos claros.</div>'; updateMetrics(0); return; } updateMetrics(items.length); items.forEach(it=>{ const pct=Math.round((it.score||0)*100); const extra = it.extra || `x=${Math.round(it.x)}, y=${Math.round(it.y)}, w=${Math.round(it.w)}, h=${Math.round(it.h)}`; const div=document.createElement('div'); div.className='item'; div.innerHTML=`<div class="top"><strong>${it.label}</strong><strong>${pct}%</strong></div><div class="small">${extra}</div><div class="bar"><span style="width:${pct}%"></span></div>`; els.results.appendChild(div); }); }
+async function runDetectorOn(source){ if(!state.model) throw new Error('Carga un modelo primero'); const threshold = Number(els.threshold.value); const maxBoxes = Number(els.maxBoxes.value); if(state.modelType.startsWith('coco_')){ const det = await state.model.detect(source, maxBoxes, threshold); const boxes = det.map(d=>({label:d.class, score:d.score, x:d.bbox[0], y:d.bbox[1], w:d.bbox[2], h:d.bbox[3]})); renderResults(boxes); drawBoxes(boxes); } else { const tensor = tf.tidy(()=> tf.browser.fromPixels(source).resizeBilinear([320,320]).toFloat().div(255).expandDims(0)); const out = await (state.model.executeAsync ? state.model.executeAsync(tensor) : state.model.predict(tensor)); const tensors = Array.isArray(out) ? out : [out]; const data = await tensors[0].data(); const indexed = Array.from(data).map((v,i)=>({label:`salida_${i}`,score:Number(v)})).sort((a,b)=>b.score-a.score).slice(0,Math.min(10,data.length)); renderResults(indexed.map((r,idx)=>({...r,x:10+idx*8,y:10+idx*8,w:80,h:40,extra:'Salida genérica del detector externo'}))); drawBoxes([]); tensors.forEach(t=>t.dispose && t.dispose()); tensor.dispose(); }
+}
+async function startCamera(){ if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('Este navegador no soporta getUserMedia()'); if(!state.model) throw new Error('Carga un modelo primero'); stopCamera(); setStatus('Abriendo cámara…','warn','Solicitando permisos'); const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:state.facingMode}, width:{ideal:1280}, height:{ideal:720}}}); state.stream=stream; els.video.srcObject=stream; await els.video.play(); state.mode='live'; state.lastProcessTime=0; state.lastFpsTs=performance.now(); state.frameCounter=0; state.displayedFps=0; showViewer('live'); state.running=true; setStatus('Cámara activa','ok',`${modelLabel()} · ${state.facingMode==='environment'?'trasera':'frontal'}`); state.rafId=requestAnimationFrame(liveLoop); }
+function stopCamera(){ stopLoop(); if(state.stream){ state.stream.getTracks().forEach(t=>t.stop()); state.stream=null; } els.video.pause(); els.video.srcObject=null; if(state.mode==='live'){ state.mode='idle'; clearOverlay(); els.video.style.display='none'; els.viewer.classList.add('empty'); setStatus('Cámara detenida','ok','Puedes abrirla de nuevo o usar una imagen'); updateMetrics(0); } }
+async function detectImage(){ if(!state.model) throw new Error('Carga un modelo primero'); const file=els.imageFile.files[0]; if(!file) throw new Error('Selecciona una imagen'); if(state.imageUrl) URL.revokeObjectURL(state.imageUrl); state.imageUrl = URL.createObjectURL(file); await new Promise((resolve,reject)=>{ els.preview.onload=()=>resolve(); els.preview.onerror=()=>reject(new Error('No se pudo abrir la imagen')); els.preview.src=state.imageUrl; }); state.mode='image'; showViewer('image'); setStatus('Analizando imagen…','warn',file.name); await runDetectorOn(els.preview); setStatus('Análisis completado','ok',file.name); }
+async function liveLoop(ts){ if(!state.running || state.mode!=='live') return; const minDelta = 1000/Number(els.maxFps.value); if(ts-state.lastProcessTime>=minDelta){ state.lastProcessTime=ts; try{ await runDetectorOn(els.video); state.frameCounter++; } catch(e){ setStatus('Error detectando','err',e.message); appendLog(e.message); stopLoop(); return; } } if(ts-state.lastFpsTs>=1000){ state.displayedFps=state.frameCounter; state.frameCounter=0; state.lastFpsTs=ts; updateMetrics(Number(els.mCount.textContent||0)); } state.rafId=requestAnimationFrame(liveLoop); }
+
+els.modelType.addEventListener('change', updateModelUrlVisibility);
+els.loadModelBtn.addEventListener('click', ()=>loadModel());
+els.startBtn.addEventListener('click', async ()=>{ try{ await startCamera(); } catch(e){ setStatus('Error abriendo cámara','err',e.message); appendLog(e.message); } });
+els.switchBtn.addEventListener('click', async ()=>{ state.facingMode = state.facingMode==='environment'?'user':'environment'; if(state.mode==='live'){ try{ await startCamera(); } catch(e){ setStatus('Error cambiando cámara','err',e.message); appendLog(e.message); } } else { setStatus('Cámara preparada','ok', state.facingMode==='environment'?'La próxima apertura usará la trasera':'La próxima apertura usará la frontal'); } });
+els.stopBtn.addEventListener('click', ()=>stopCamera());
+els.detectImageBtn.addEventListener('click', async ()=>{ try{ await detectImage(); } catch(e){ setStatus('Error analizando imagen','err',e.message); appendLog(e.message); } });
+window.addEventListener('resize', ()=>{ if(state.mode==='live' || state.mode==='image') resizeOverlay(); });
+window.addEventListener('beforeunload', ()=>{ if(state.imageUrl) URL.revokeObjectURL(state.imageUrl); stopCamera(); });
+window.addEventListener('load', ()=>{ updateModelUrlVisibility(); updateMetrics(0); els.mModel.textContent=modelLabel(); });
+</script>
+</body>
+</html>
