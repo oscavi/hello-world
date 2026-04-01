@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vision Live iPhone</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+<style>
+body{margin:0;background:#0b1220;color:white;font-family:sans-serif;text-align:center}
+video{width:100%;max-width:600px}
+canvas{position:absolute;top:0;left:0}
+.container{position:relative;display:inline-block}
+button{padding:10px;margin:5px}
+</style>
+</head>
+
+<body>
+
+<h2>Vision Live (detección en tiempo real)</h2>
+
+<button onclick="startCamera()">Abrir cámara</button>
+<button onclick="stopCamera()">Cerrar cámara</button>
+
+<div class="container">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+</div>
+
+<script>
+let model;
+let video=document.getElementById("video");
+let canvas=document.getElementById("canvas");
+let ctx=canvas.getContext("2d");
+let stream;
+
+async function loadModel(){
+  model=await cocoSsd.load();
+  console.log("Modelo cargado");
+}
+
+async function startCamera(){
+  stream=await navigator.mediaDevices.getUserMedia({video:true});
+  video.srcObject=stream;
+
+  video.onloadedmetadata=()=>{
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+    detectFrame();
+  }
+}
+
+function stopCamera(){
+  if(stream){
+    stream.getTracks().forEach(t=>t.stop());
+  }
+}
+
+async function detectFrame(){
+  const predictions=await model.detect(video);
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  predictions.forEach(p=>{
+    ctx.strokeStyle="red";
+    ctx.lineWidth=2;
+    ctx.strokeRect(...p.bbox);
+
+    ctx.fillStyle="red";
+    ctx.fillText(
+      p.class+" "+Math.round(p.score*100)+"%",
+      p.bbox[0],
+      p.bbox[1]-5
+    );
+  });
+
+  requestAnimationFrame(detectFrame);
+}
+
+loadModel();
+</script>
+
+</body>
+</html>
