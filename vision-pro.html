@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#08111d">
+  <title>Vision Pro iPhone</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+  <style>
+    :root{
+      --bg:#07111f;
+      --bg2:#0b172a;
+      --card:rgba(12,22,39,.94);
+      --card2:rgba(10,18,33,.98);
+      --text:#e6eef8;
+      --muted:#9fb2c8;
+      --border:#24364d;
+      --accent:#66d9ff;
+      --accent2:#7cffc2;
+      --danger:#ff7b7b;
+      --warning:#ffd166;
+      --ok:#73ffa8;
+      --soft:#162338;
+      --shadow:0 16px 40px rgba(0,0,0,.35);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      color:var(--text);
+      background:radial-gradient(circle at top,#12233f 0%,#08111f 42%,#050b15 100%);
+      min-height:100vh;
+    }
+    .wrap{max-width:1180px;margin:0 auto;padding:18px 16px 28px}
+    .hero{padding:18px;border:1px solid var(--border);border-radius:24px;background:linear-gradient(180deg,rgba(15,28,48,.95),rgba(8,16,30,.96));box-shadow:var(--shadow);margin-bottom:16px}
+    h1{margin:0 0 8px;font-size:1.8rem;line-height:1.1}
+    h2{margin:0 0 12px;font-size:1.06rem}
+    p{margin:0;color:var(--muted);line-height:1.5}
+    .hero p{max-width:900px}
+    .grid{display:grid;grid-template-columns:1.25fr .75fr;gap:16px}
+    .card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow);overflow:hidden}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .btn,.file-label{appearance:none;border:none;cursor:pointer;text-decoration:none;border-radius:14px;padding:13px 16px;font-weight:700;font-size:1rem;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .08s ease,opacity .2s ease,background .2s ease}
+    .btn:active,.file-label:active{transform:scale(.98)}
+    .btn.primary,.file-label.primary{background:linear-gradient(180deg,var(--accent),#3fc6ff);color:#06233a}
+    .btn.secondary,.file-label.secondary{background:var(--soft);color:var(--text);border:1px solid var(--border)}
+    .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+    input[type=file]{display:none}
+    .pillbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .pill{padding:8px 10px;border-radius:999px;background:#0d1a2c;border:1px solid var(--border);font-size:.9rem;color:var(--muted)}
+    .statusbox{display:grid;gap:10px}
+    .status{font-weight:800;font-size:1rem}
+    .ok{color:var(--ok)} .warn{color:var(--warning)} .err{color:var(--danger)}
+    .small{font-size:.92rem;color:var(--muted)}
+    .viewer{position:relative;width:100%;min-height:340px;background:linear-gradient(180deg,#06101d,#081321);border:1px solid var(--border);border-radius:18px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+    .viewer.empty::before{content:"Abre la cámara o selecciona una imagen";color:var(--muted);font-size:.98rem}
+    #video,#preview,#overlay{max-width:100%;display:block}
+    #video,#preview{width:100%;height:auto;object-fit:contain;background:#000}
+    #overlay{position:absolute;left:0;top:0;pointer-events:none}
+    .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+    .metric{padding:12px;border-radius:14px;background:#0b1627;border:1px solid var(--border)}
+    .metric .label{font-size:.82rem;color:var(--muted);margin-bottom:4px}
+    .metric .value{font-size:1.15rem;font-weight:800}
+    .list{display:grid;gap:10px}
+    .det{padding:12px;border:1px solid var(--border);border-radius:14px;background:#0a1424}
+    .det .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+    .confidence{font-weight:700;color:var(--accent2)}
+    .bar{height:10px;background:#14233a;border-radius:999px;overflow:hidden;margin-top:8px}
+    .bar > span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%}
+    .controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+    .control{padding:12px;border:1px solid var(--border);border-radius:14px;background:#0a1424}
+    .control label{display:block;font-size:.86rem;color:var(--muted);margin-bottom:8px}
+    .control input[type=range]{width:100%}
+    details{border:1px solid var(--border);border-radius:14px;padding:12px;background:#0a1424}
+    summary{cursor:pointer;font-weight:700}
+    pre{margin:10px 0 0;background:#030814;border:1px solid var(--border);border-radius:14px;padding:12px;white-space:pre-wrap;overflow:auto;color:#bfd0e2;max-height:260px}
+    .footer-note{margin-top:10px;color:var(--muted);font-size:.9rem}
+    @media (max-width: 900px){.grid{grid-template-columns:1fr}.metrics{grid-template-columns:1fr 1fr}.controls-grid{grid-template-columns:1fr}}
+    @media (max-width: 560px){h1{font-size:1.45rem}.metrics{grid-template-columns:1fr 1fr}.wrap{padding:12px 12px 22px}.card,.hero{padding:14px}.viewer{min-height:260px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Vision Pro iPhone</h1>
+      <p>Versión pro para Safari en iPhone y GitHub Pages. Detecta objetos en <strong>tiempo real</strong> o sobre imágenes, dibuja <strong>recuadros y etiquetas</strong>, permite cambiar entre cámara frontal y trasera, ajustar confianza mínima y limitar FPS para ir más fluido.</p>
+      <div class="pillbar">
+        <div class="pill">Tiempo real</div>
+        <div class="pill">Frontal / trasera</div>
+        <div class="pill">Throttle FPS</div>
+        <div class="pill">Confianza mínima</div>
+        <div class="pill">Modo foto</div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Visor</h2>
+        <div class="row" style="margin-bottom:12px">
+          <button class="btn primary" id="startBtn">Abrir cámara</button>
+          <button class="btn secondary" id="switchBtn">Cambiar cámara</button>
+          <button class="btn ghost" id="stopBtn">Cerrar cámara</button>
+          <label class="file-label secondary" for="cameraInput">Hacer foto</label>
+          <input id="cameraInput" type="file" accept="image/*" capture="environment">
+          <label class="file-label secondary" for="galleryInput">Elegir imagen</label>
+          <input id="galleryInput" type="file" accept="image/*">
+          <button class="btn ghost" id="analyseBtn" disabled>Reanalizar imagen</button>
+          <button class="btn ghost" id="retryBtn">Reintentar carga</button>
+        </div>
+
+        <div id="viewer" class="viewer empty">
+          <video id="video" playsinline muted style="display:none"></video>
+          <img id="preview" alt="Vista previa" style="display:none">
+          <canvas id="overlay"></canvas>
+        </div>
+
+        <div class="metrics">
+          <div class="metric"><div class="label">Modo</div><div id="metricMode" class="value">—</div></div>
+          <div class="metric"><div class="label">Objetos</div><div id="metricCount" class="value">0</div></div>
+          <div class="metric"><div class="label">Principal</div><div id="metricTop" class="value">—</div></div>
+          <div class="metric"><div class="label">FPS aprox.</div><div id="metricFps" class="value">—</div></div>
+        </div>
+
+        <div class="controls-grid">
+          <div class="control">
+            <label for="confidenceRange">Confianza mínima: <span id="confidenceValue">40%</span></label>
+            <input id="confidenceRange" type="range" min="10" max="90" step="5" value="40">
+          </div>
+          <div class="control">
+            <label for="fpsRange">Máximo FPS de análisis: <span id="fpsValue">8</span></label>
+            <input id="fpsRange" type="range" min="2" max="15" step="1" value="8">
+          </div>
+        </div>
+
+        <div class="footer-note">En iPhone, la cámara en directo requiere permiso. Si prefieres, usa “Hacer foto”, que suele ser todavía más estable.</div>
+      </section>
+
+      <aside class="card statusbox">
+        <div>
+          <h2>Estado</h2>
+          <div id="status" class="status warn">Preparando aplicación…</div>
+          <div id="substatus" class="small" style="margin-top:6px">Cargando TensorFlow.js y el modelo COCO-SSD.</div>
+        </div>
+
+        <div>
+          <h2>Detecciones</h2>
+          <div id="results" class="list"><div class="small">Todavía no hay resultados.</div></div>
+        </div>
+
+        <details>
+          <summary>Diagnóstico técnico</summary>
+          <pre id="log"></pre>
+        </details>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const state = {
+      model: null,
+      loading: false,
+      stream: null,
+      facingMode: 'environment',
+      mode: 'idle',
+      currentFile: null,
+      currentObjectUrl: null,
+      minScore: 0.40,
+      maxFps: 8,
+      rafId: 0,
+      running: false,
+      lastProcessTime: 0,
+      smoothedBoxes: new Map(),
+      lastFpsTs: performance.now(),
+      frameCounter: 0,
+      displayedFps: 0
+    };
+
+    const palette = ['#66d9ff','#7cffc2','#ffd166','#ff8fab','#c5a3ff','#5eead4','#fca5a5','#93c5fd','#86efac','#fcd34d'];
+
+    const els = {
+      startBtn: document.getElementById('startBtn'),
+      switchBtn: document.getElementById('switchBtn'),
+      stopBtn: document.getElementById('stopBtn'),
+      analyseBtn: document.getElementById('analyseBtn'),
+      retryBtn: document.getElementById('retryBtn'),
+      cameraInput: document.getElementById('cameraInput'),
+      galleryInput: document.getElementById('galleryInput'),
+      viewer: document.getElementById('viewer'),
+      video: document.getElementById('video'),
+      preview: document.getElementById('preview'),
+      overlay: document.getElementById('overlay'),
+      status: document.getElementById('status'),
+      substatus: document.getElementById('substatus'),
+      results: document.getElementById('results'),
+      log: document.getElementById('log'),
+      metricMode: document.getElementById('metricMode'),
+      metricCount: document.getElementById('metricCount'),
+      metricTop: document.getElementById('metricTop'),
+      metricFps: document.getElementById('metricFps'),
+      confidenceRange: document.getElementById('confidenceRange'),
+      confidenceValue: document.getElementById('confidenceValue'),
+      fpsRange: document.getElementById('fpsRange'),
+      fpsValue: document.getElementById('fpsValue')
+    };
+
+    function log(msg){
+      const ts = new Date().toLocaleTimeString();
+      els.log.textContent += `[${ts}] ${msg}\n`;
+      els.log.scrollTop = els.log.scrollHeight;
+      console.log(msg);
+    }
+
+    function setStatus(text, cls='warn', sub=''){
+      els.status.className = `status ${cls}`;
+      els.status.textContent = text;
+      els.substatus.textContent = sub;
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/\"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+    }
+
+    function sourceElement(){
+      return state.mode === 'live' ? els.video : els.preview;
+    }
+
+    function clearOverlay(){
+      const ctx = els.overlay.getContext('2d');
+      ctx.clearRect(0,0,els.overlay.width,els.overlay.height);
+    }
+
+    function resizeOverlay(){
+      const src = sourceElement();
+      if(!src) return;
+      const w = src.clientWidth || 0;
+      const h = src.clientHeight || 0;
+      els.overlay.width = w;
+      els.overlay.height = h;
+      els.overlay.style.width = `${w}px`;
+      els.overlay.style.height = `${h}px`;
+      clearOverlay();
+    }
+
+    function showViewer(mode){
+      els.video.style.display = mode === 'live' ? 'block' : 'none';
+      els.preview.style.display = mode === 'image' ? 'block' : 'none';
+      els.viewer.classList.remove('empty');
+      resizeOverlay();
+    }
+
+    function resetMetrics(){
+      els.metricCount.textContent = '0';
+      els.metricTop.textContent = '—';
+      els.metricFps.textContent = state.mode === 'live' ? String(state.displayedFps || 0) : '—';
+      els.metricMode.textContent = state.mode === 'live' ? 'Vídeo' : state.mode === 'image' ? 'Imagen' : '—';
+    }
+
+    function stopLoop(){
+      state.running = false;
+      if(state.rafId) cancelAnimationFrame(state.rafId);
+      state.rafId = 0;
+    }
+
+    function stopCamera(){
+      stopLoop();
+      if(state.stream){
+        state.stream.getTracks().forEach(t => t.stop());
+        state.stream = null;
+      }
+      els.video.pause();
+      els.video.srcObject = null;
+      if(state.mode === 'live'){
+        state.mode = 'idle';
+        state.smoothedBoxes.clear();
+        resetMetrics();
+        clearOverlay();
+        els.viewer.classList.add('empty');
+        els.video.style.display = 'none';
+        setStatus('Cámara detenida','ok','Puedes abrirla de nuevo o usar una imagen');
+        log('Cámara detenida');
+      }
+    }
+
+    function loadScript(src, timeoutMs = 18000){
+      return new Promise((resolve, reject) => {
+        log(`Intentando cargar script: ${src}`);
+        const existing = document.querySelector(`script[data-src="${src}"]`);
+        if(existing){ resolve(); return; }
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = true;
+        s.dataset.src = src;
+        let done = false;
+        const timer = setTimeout(() => {
+          if(done) return;
+          done = true;
+          s.remove();
+          reject(new Error(`Timeout cargando ${src}`));
+        }, timeoutMs);
+        s.onload = () => { if(done) return; done = true; clearTimeout(timer); log(`Script cargado: ${src}`); resolve(); };
+        s.onerror = () => { if(done) return; done = true; clearTimeout(timer); s.remove(); reject(new Error(`Error cargando ${src}`)); };
+        document.head.appendChild(s);
+      });
+    }
+
+    async function loadWithFallbacks(urls){
+      let lastErr;
+      for(const url of urls){
+        try { await loadScript(url); return; }
+        catch(err){ lastErr = err; log(err.message); }
+      }
+      throw lastErr || new Error('No se pudo cargar ningún recurso externo');
+    }
+
+    async function init(){
+      if(state.loading) return;
+      state.loading = true;
+      state.model = null;
+      setStatus('Preparando aplicación…','warn','Cargando TensorFlow.js');
+      try{
+        await loadWithFallbacks([
+          'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js',
+          'https://unpkg.com/@tensorflow/tfjs@4.20.0/dist/tf.min.js'
+        ]);
+        if(!window.tf) throw new Error('TensorFlow.js no disponible');
+        try { await tf.setBackend('webgl'); } catch(_) {}
+        await tf.ready();
+        log(`TensorFlow.js ${tf.version.tfjs} · backend ${tf.getBackend()}`);
+
+        setStatus('Preparando aplicación…','warn','Cargando COCO-SSD');
+        await loadWithFallbacks([
+          'https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js',
+          'https://unpkg.com/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js'
+        ]);
+        if(!window.cocoSsd) throw new Error('COCO-SSD no disponible');
+
+        setStatus('Preparando aplicación…','warn','Descargando modelo');
+        state.model = await cocoSsd.load({base:'lite_mobilenet_v2'});
+        setStatus('Aplicación lista','ok','Puedes abrir cámara o usar una foto');
+        log('Modelo COCO-SSD cargado correctamente');
+      }catch(err){
+        setStatus('Error al preparar la aplicación','err', err.message);
+        log(`FALLO: ${err.message}`);
+      }finally{
+        state.loading = false;
+      }
+    }
+
+    function renderResults(detections){
+      els.results.innerHTML = '';
+      if(!detections.length){
+        els.results.innerHTML = '<div class="small">No se han detectado objetos claros.</div>';
+        els.metricCount.textContent = '0';
+        els.metricTop.textContent = '—';
+        return;
+      }
+      els.metricCount.textContent = String(detections.length);
+      els.metricTop.textContent = detections[0].class || '—';
+      detections.forEach(det => {
+        const pct = Math.round(det.score * 100);
+        const [x,y,w,h] = det.bbox.map(v => Math.round(v));
+        const el = document.createElement('div');
+        el.className = 'det';
+        el.innerHTML = `
+          <div class="top">
+            <strong>${escapeHtml(det.class)}</strong>
+            <span class="confidence">${pct}%</span>
+          </div>
+          <div class="small">Caja: x=${x}, y=${y}, ancho=${w}, alto=${h}</div>
+          <div class="bar"><span style="width:${pct}%"></span></div>
+        `;
+        els.results.appendChild(el);
+      });
+    }
+
+    function smoothBox(key, bbox){
+      const prev = state.smoothedBoxes.get(key);
+      if(!prev){
+        state.smoothedBoxes.set(key, bbox.slice());
+        return bbox;
+      }
+      const alpha = 0.55;
+      const next = bbox.map((v, i) => prev[i] * (1 - alpha) + v * alpha);
+      state.smoothedBoxes.set(key, next);
+      return next;
+    }
+
+    function drawDetections(detections){
+      resizeOverlay();
+      const ctx = els.overlay.getContext('2d');
+      const src = sourceElement();
+      const srcW = state.mode === 'live' ? src.videoWidth : src.naturalWidth;
+      const srcH = state.mode === 'live' ? src.videoHeight : src.naturalHeight;
+      const sx = srcW ? els.overlay.width / srcW : 1;
+      const sy = srcH ? els.overlay.height / srcH : 1;
+
+      ctx.clearRect(0,0,els.overlay.width,els.overlay.height);
+      ctx.textBaseline = 'top';
+      ctx.lineJoin = 'round';
+      ctx.font = '600 14px -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif';
+
+      const freshKeys = new Set();
+      detections.forEach((det, idx) => {
+        const key = `${det.class}-${idx}`;
+        freshKeys.add(key);
+        const smoothed = state.mode === 'live' ? smoothBox(key, det.bbox) : det.bbox;
+        const color = palette[idx % palette.length];
+        const [x,y,w,h] = smoothed;
+        const dx = x * sx;
+        const dy = y * sy;
+        const dw = w * sx;
+        const dh = h * sy;
+        const pct = Math.round(det.score * 100);
+        const label = `${det.class} ${pct}%`;
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.strokeRect(dx, dy, dw, dh);
+
+        const textWidth = Math.ceil(ctx.measureText(label).width);
+        const labelH = 24;
+        const labelY = Math.max(0, dy - labelH - 4);
+        ctx.fillStyle = color;
+        ctx.fillRect(dx, labelY, textWidth + 16, labelH);
+        ctx.fillStyle = '#04101d';
+        ctx.fillText(label, dx + 8, labelY + 4);
+      });
+
+      for(const key of Array.from(state.smoothedBoxes.keys())){
+        if(!freshKeys.has(key)) state.smoothedBoxes.delete(key);
+      }
+    }
+
+    async function detectOnCurrentSource(){
+      if(!state.model) return;
+      const src = sourceElement();
+      if(!src) return;
+      try{
+        const detections = await state.model.detect(src, 20, state.minScore);
+        detections.sort((a,b) => b.score - a.score);
+        renderResults(detections);
+        drawDetections(detections);
+      }catch(err){
+        setStatus('Error durante la detección','err', err.message);
+        log(`Error detectando: ${err.message}`);
+      }
+    }
+
+    async function liveLoop(ts){
+      if(!state.running || state.mode !== 'live') return;
+      const minDelta = 1000 / state.maxFps;
+      if(ts - state.lastProcessTime >= minDelta){
+        state.lastProcessTime = ts;
+        await detectOnCurrentSource();
+        state.frameCounter++;
+      }
+      if(ts - state.lastFpsTs >= 1000){
+        state.displayedFps = state.frameCounter;
+        els.metricFps.textContent = String(state.displayedFps);
+        state.frameCounter = 0;
+        state.lastFpsTs = ts;
+      }
+      state.rafId = requestAnimationFrame(liveLoop);
+    }
+
+    async function startCamera(){
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        setStatus('Cámara no compatible','err','Este navegador no soporta getUserMedia()');
+        return;
+      }
+      try{
+        stopCamera();
+        setStatus('Abriendo cámara…','warn','Solicitando permisos');
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio:false,
+          video:{
+            facingMode:{ideal:state.facingMode},
+            width:{ideal:1280},
+            height:{ideal:720}
+          }
+        });
+        state.stream = stream;
+        els.video.srcObject = stream;
+        await els.video.play();
+        state.mode = 'live';
+        resetMetrics();
+        showViewer('live');
+        state.running = true;
+        state.lastProcessTime = 0;
+        state.lastFpsTs = performance.now();
+        state.frameCounter = 0;
+        state.displayedFps = 0;
+        setStatus('Cámara activa','ok', state.facingMode === 'environment' ? 'Usando cámara trasera' : 'Usando cámara frontal');
+        log(`Cámara iniciada con facingMode=${state.facingMode}`);
+        state.rafId = requestAnimationFrame(liveLoop);
+      }catch(err){
+        setStatus('No se pudo abrir la cámara','err', err.message);
+        log(`Error cámara: ${err.message}`);
+      }
+    }
+
+    function loadImageFile(file){
+      if(!file) return;
+      stopCamera();
+      state.currentFile = file;
+      state.mode = 'image';
+      resetMetrics();
+      els.metricMode.textContent = 'Imagen';
+      els.metricFps.textContent = '—';
+      els.analyseBtn.disabled = false;
+      state.smoothedBoxes.clear();
+
+      if(state.currentObjectUrl){
+        URL.revokeObjectURL(state.currentObjectUrl);
+        state.currentObjectUrl = null;
+      }
+      const objectUrl = URL.createObjectURL(file);
+      state.currentObjectUrl = objectUrl;
+      els.preview.onload = async () => {
+        showViewer('image');
+        setStatus('Imagen cargada','ok', `${file.name || 'captura'} lista para analizar`);
+        log(`Imagen cargada: ${file.name || 'sin nombre'} (${file.type || 'tipo desconocido'})`);
+        await detectOnCurrentSource();
+      };
+      els.preview.onerror = () => {
+        setStatus('No se pudo abrir la imagen','err','Prueba con otra foto');
+        log('Fallo cargando imagen');
+      };
+      els.preview.src = objectUrl;
+    }
+
+    els.startBtn.addEventListener('click', startCamera);
+    els.switchBtn.addEventListener('click', async () => {
+      state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
+      log(`Cambio de cámara solicitado: ${state.facingMode}`);
+      if(state.mode === 'live') await startCamera();
+      else setStatus('Cámara preparada','ok', state.facingMode === 'environment' ? 'La próxima apertura usará la trasera' : 'La próxima apertura usará la frontal');
+    });
+    els.stopBtn.addEventListener('click', stopCamera);
+    els.analyseBtn.addEventListener('click', () => { if(state.mode === 'image') detectOnCurrentSource(); });
+    els.retryBtn.addEventListener('click', init);
+    els.cameraInput.addEventListener('change', e => loadImageFile(e.target.files && e.target.files[0]));
+    els.galleryInput.addEventListener('change', e => loadImageFile(e.target.files && e.target.files[0]));
+    els.confidenceRange.addEventListener('input', e => {
+      state.minScore = Number(e.target.value) / 100;
+      els.confidenceValue.textContent = `${e.target.value}%`;
+    });
+    els.fpsRange.addEventListener('input', e => {
+      state.maxFps = Number(e.target.value);
+      els.fpsValue.textContent = e.target.value;
+    });
+    window.addEventListener('resize', () => {
+      if(state.mode === 'live' || state.mode === 'image') resizeOverlay();
+    });
+    window.addEventListener('beforeunload', () => {
+      if(state.currentObjectUrl) URL.revokeObjectURL(state.currentObjectUrl);
+      stopCamera();
+    });
+    window.addEventListener('load', () => {
+      els.confidenceValue.textContent = `${Math.round(state.minScore * 100)}%`;
+      els.fpsValue.textContent = String(state.maxFps);
+      init();
+    });
+  </script>
+</body>
+</html>
