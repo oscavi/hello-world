@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#08111d">
+  <title>Vision Gestures iPhone</title>
+  <style>
+    :root{--bg:#07111f;--card:rgba(12,22,39,.94);--card2:rgba(10,18,33,.98);--text:#e6eef8;--muted:#9fb2c8;--border:#24364d;--accent:#66d9ff;--accent2:#7cffc2;--danger:#ff7b7b;--warning:#ffd166;--ok:#73ffa8;--soft:#162338;--shadow:0 16px 40px rgba(0,0,0,.35);--radius:20px}
+    *{box-sizing:border-box} html,body{margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:radial-gradient(circle at top,#12233f 0%,#08111f 42%,#050b15 100%);min-height:100vh}
+    .wrap{max-width:1320px;margin:0 auto;padding:18px 16px 28px}
+    .hero,.card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--border);border-radius:24px;box-shadow:var(--shadow)}
+    .hero{padding:18px;margin-bottom:16px}.card{padding:16px}
+    h1{margin:0 0 8px;font-size:1.85rem;line-height:1.1} h2{margin:0 0 12px;font-size:1.06rem} p{margin:0;color:var(--muted);line-height:1.5}
+    .grid{display:grid;grid-template-columns:1.15fr .85fr;gap:16px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .btn,select{appearance:none;border:none;text-decoration:none;border-radius:14px;padding:13px 16px;font-weight:700;font-size:1rem;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--soft);color:var(--text);border:1px solid var(--border);cursor:pointer}
+    .btn.primary{background:linear-gradient(180deg,var(--accent),#3fc6ff);color:#06233a;border:none}.btn.ghost{background:transparent}.btn:disabled{opacity:.55;cursor:not-allowed}
+    .viewer{position:relative;width:100%;min-height:340px;background:linear-gradient(180deg,#06101d,#081321);border:1px solid var(--border);border-radius:18px;overflow:hidden;display:flex;align-items:center;justify-content:center}.viewer.empty::before{content:'Abre la cámara para empezar';color:var(--muted);font-size:.98rem}
+    #video{display:block;background:#000;max-width:100%;max-height:75vh;margin:auto;width:100%;height:auto;object-fit:contain} #overlay{position:absolute;inset:0;pointer-events:none}
+    .metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.metric{padding:12px;border-radius:14px;background:#0b1627;border:1px solid var(--border)} .metric .label{font-size:.82rem;color:var(--muted);margin-bottom:4px}.metric .value{font-size:1.05rem;font-weight:800}
+    .controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.control{padding:12px;border:1px solid var(--border);border-radius:14px;background:#0a1424}.control label{display:block;font-size:.86rem;color:var(--muted);margin-bottom:8px}.control input[type=range]{width:100%}
+    .status{font-weight:800;font-size:1rem}.ok{color:var(--ok)}.warn{color:var(--warning)}.err{color:var(--danger)}.small{font-size:.92rem;color:var(--muted)}
+    .list{display:grid;gap:10px}.item{padding:12px;border:1px solid var(--border);border-radius:14px;background:#0a1424}.pill{display:inline-flex;padding:8px 10px;border-radius:999px;border:1px solid var(--border);background:#0d1a2c;color:var(--muted);font-size:.88rem}
+    details{border:1px solid var(--border);border-radius:14px;padding:12px;background:#0a1424} summary{cursor:pointer;font-weight:700} pre{margin:10px 0 0;background:#030814;border:1px solid var(--border);border-radius:14px;padding:12px;white-space:pre-wrap;overflow:auto;color:#bfd0e2;max-height:260px}
+    .note{padding:12px;border:1px dashed var(--border);border-radius:14px;background:#0a1424;color:var(--muted);margin-top:12px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}.metrics,.controls-grid{grid-template-columns:1fr 1fr}} @media (max-width:560px){h1{font-size:1.45rem}.metrics,.controls-grid{grid-template-columns:1fr}.wrap{padding:12px 12px 22px}.hero,.card{padding:14px}.viewer{min-height:260px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>Vision Gestures iPhone</h1>
+      <p>Reconoce gestos y clasifica acciones en tiempo real usando la pose del cuerpo. Incluye gestos instantáneos como manos arriba y T-pose, y acciones temporales como sentadilla, salto y saludo. También guarda eventos detectados y permite descargar el historial.</p>
+    </section>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Vídeo en directo</h2>
+        <div class="row" style="margin-bottom:12px">
+          <select id="modelSelect">
+            <option value="lightning">MoveNet Lightning (rápido)</option>
+            <option value="thunder">MoveNet Thunder (más preciso)</option>
+          </select>
+          <button class="btn primary" id="loadModelBtn">Cargar modelo</button>
+          <button class="btn primary" id="startBtn">Abrir cámara</button>
+          <button class="btn" id="switchBtn">Cambiar cámara</button>
+          <button class="btn ghost" id="stopBtn">Cerrar cámara</button>
+          <button class="btn" id="clearBtn">Borrar eventos</button>
+          <button class="btn ghost" id="downloadBtn" disabled>Descargar JSON</button>
+        </div>
+
+        <div id="viewer" class="viewer empty">
+          <video id="video" playsinline muted style="display:none"></video>
+          <canvas id="overlay"></canvas>
+        </div>
+
+        <div class="metrics">
+          <div class="metric"><div class="label">Modelo</div><div id="metricModel" class="value">—</div></div>
+          <div class="metric"><div class="label">FPS aprox.</div><div id="metricFps" class="value">—</div></div>
+          <div class="metric"><div class="label">Gesto actual</div><div id="metricGesture" class="value">—</div></div>
+          <div class="metric"><div class="label">Acción actual</div><div id="metricAction" class="value">—</div></div>
+        </div>
+
+        <div class="controls-grid">
+          <div class="control">
+            <label for="confidenceRange">Confianza mínima articulación: <span id="confidenceValue">25%</span></label>
+            <input id="confidenceRange" type="range" min="10" max="90" step="5" value="25">
+          </div>
+          <div class="control">
+            <label for="fpsRange">Máximo FPS de análisis: <span id="fpsValue">10</span></label>
+            <input id="fpsRange" type="range" min="2" max="20" step="1" value="10">
+          </div>
+        </div>
+
+        <div class="note">Gestos instantáneos: manos arriba, mano izquierda arriba, mano derecha arriba, T-pose, brazos cruzados. Acciones temporales: sentadilla, salto y saludo. Son heurísticas sobre el esqueleto, así que funcionan mejor con el cuerpo visible entero.</div>
+      </section>
+
+      <aside class="card">
+        <h2>Estado</h2>
+        <div id="status" class="status warn">Selecciona un modelo y pulsa cargar.</div>
+        <div id="substatus" class="small" style="margin-top:6px">Luego abre la cámara para empezar el reconocimiento.</div>
+
+        <div class="row" style="margin-top:12px">
+          <div class="pill">Gestos: <span id="gesturePill" style="margin-left:6px">—</span></div>
+          <div class="pill">Acciones: <span id="actionPill" style="margin-left:6px">—</span></div>
+        </div>
+
+        <h2 style="margin-top:16px">Eventos detectados</h2>
+        <div id="events" class="list"><div class="small">Todavía no hay eventos.</div></div>
+
+        <details style="margin-top:16px">
+          <summary>Diagnóstico técnico</summary>
+          <pre id="log"></pre>
+        </details>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const KEYPOINTS = ['nose','left_eye','right_eye','left_ear','right_ear','left_shoulder','right_shoulder','left_elbow','right_elbow','left_wrist','right_wrist','left_hip','right_hip','left_knee','right_knee','left_ankle','right_ankle'];
+    const EDGES = [
+      ['nose','left_eye'],['nose','right_eye'],['left_eye','left_ear'],['right_eye','right_ear'],['left_shoulder','right_shoulder'],['left_shoulder','left_elbow'],['left_elbow','left_wrist'],['right_shoulder','right_elbow'],['right_elbow','right_wrist'],['left_shoulder','left_hip'],['right_shoulder','right_hip'],['left_hip','right_hip'],['left_hip','left_knee'],['left_knee','left_ankle'],['right_hip','right_knee'],['right_knee','right_ankle']
+    ];
+    const state = {
+      detector:null, detectorName:'lightning', loadingModel:false, stream:null, facingMode:'environment', minScore:0.25, maxFps:10,
+      mode:'idle', rafId:0, running:false, lastProcessTime:0, lastFpsTs:performance.now(), frameCounter:0, displayedFps:0,
+      poseHistory:[], currentGesture:'—', currentAction:'—', events:[], cooldowns:new Map(), waveCounter:0
+    };
+    const els = {
+      modelSelect:document.getElementById('modelSelect'), loadModelBtn:document.getElementById('loadModelBtn'), startBtn:document.getElementById('startBtn'), switchBtn:document.getElementById('switchBtn'), stopBtn:document.getElementById('stopBtn'), clearBtn:document.getElementById('clearBtn'), downloadBtn:document.getElementById('downloadBtn'),
+      video:document.getElementById('video'), overlay:document.getElementById('overlay'), viewer:document.getElementById('viewer'),
+      metricModel:document.getElementById('metricModel'), metricFps:document.getElementById('metricFps'), metricGesture:document.getElementById('metricGesture'), metricAction:document.getElementById('metricAction'),
+      confidenceRange:document.getElementById('confidenceRange'), confidenceValue:document.getElementById('confidenceValue'), fpsRange:document.getElementById('fpsRange'), fpsValue:document.getElementById('fpsValue'),
+      status:document.getElementById('status'), substatus:document.getElementById('substatus'), gesturePill:document.getElementById('gesturePill'), actionPill:document.getElementById('actionPill'), events:document.getElementById('events'), log:document.getElementById('log')
+    };
+
+    function log(msg){ const ts=new Date().toLocaleTimeString(); els.log.textContent += `[${ts}] ${msg}\n`; els.log.scrollTop=els.log.scrollHeight; console.log(msg); }
+    function setStatus(text, cls='warn', sub=''){ els.status.className=`status ${cls}`; els.status.textContent=text; els.substatus.textContent=sub; }
+    function modelLabel(){ return state.detectorName === 'lightning' ? 'MoveNet Lightning' : 'MoveNet Thunder'; }
+    function clearOverlay(){ const ctx=els.overlay.getContext('2d'); ctx.clearRect(0,0,els.overlay.width,els.overlay.height); }
+    function resizeOverlay(){ const w=els.video.clientWidth||0,h=els.video.clientHeight||0; els.overlay.width=w; els.overlay.height=h; els.overlay.style.width=w+'px'; els.overlay.style.height=h+'px'; clearOverlay(); }
+    function updateMetrics(){ els.metricModel.textContent=modelLabel(); els.metricFps.textContent=state.mode==='live' ? String(state.displayedFps||0) : '—'; els.metricGesture.textContent=state.currentGesture; els.metricAction.textContent=state.currentAction; els.gesturePill.textContent=state.currentGesture; els.actionPill.textContent=state.currentAction; }
+    function stopLoop(){ state.running=false; if(state.rafId) cancelAnimationFrame(state.rafId); state.rafId=0; }
+    function valid(kp){ return kp && kp.score >= state.minScore && kp.x != null && kp.y != null; }
+
+    async function loadScript(src, timeoutMs=18000){ return new Promise((resolve,reject)=>{ const existing=document.querySelector(`script[data-src="${src}"]`); if(existing){ resolve(); return; } log(`Intentando cargar script: ${src}`); const s=document.createElement('script'); s.src=src; s.async=true; s.dataset.src=src; let done=false; const timer=setTimeout(()=>{ if(done) return; done=true; s.remove(); reject(new Error(`Timeout cargando ${src}`)); }, timeoutMs); s.onload=()=>{ if(done) return; done=true; clearTimeout(timer); log(`Script cargado: ${src}`); resolve(); }; s.onerror=()=>{ if(done) return; done=true; clearTimeout(timer); s.remove(); reject(new Error(`Error cargando ${src}`)); }; document.head.appendChild(s); }); }
+    async function ensureLibraries(){ await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core@4.20.0/dist/tf-core.min.js'); await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter@4.20.0/dist/tf-converter.min.js'); await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@4.20.0/dist/tf-backend-webgl.min.js'); await loadScript('https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js'); if(!window.tf || !window.poseDetection) throw new Error('No se pudieron cargar las librerías'); try { await tf.setBackend('webgl'); } catch(_) {} await tf.ready(); log(`TensorFlow.js backend: ${tf.getBackend()}`); }
+
+    async function loadDetector(){ if(state.loadingModel) return; state.loadingModel=true; state.detector=null; state.detectorName=els.modelSelect.value; setStatus('Cargando modelo…','warn',modelLabel()); try{ await ensureLibraries(); state.detector = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, { modelType: state.detectorName === 'lightning' ? poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING : poseDetection.movenet.modelType.SINGLEPOSE_THUNDER, enableSmoothing:true }); setStatus('Modelo listo','ok', `${modelLabel()} cargado`); updateMetrics(); log(`Detector cargado: ${modelLabel()}`); } catch(err){ setStatus('Error cargando modelo','err',err.message); log(`FALLO MODELO: ${err.message}`); } finally{ state.loadingModel=false; } }
+
+    function getDisplayedMediaRect(){ const cw=els.video.clientWidth||0,ch=els.video.clientHeight||0,nw=els.video.videoWidth||cw,nh=els.video.videoHeight||ch; if(!cw||!ch||!nw||!nh) return null; const scale=Math.min(cw/nw,ch/nh); const drawW=nw*scale, drawH=nh*scale; return { offsetX:(cw-drawW)/2, offsetY:(ch-drawH)/2, scaleX:drawW/nw, scaleY:drawH/nh }; }
+    function drawPoseOnOverlay(pose){ resizeOverlay(); const rect=getDisplayedMediaRect(); if(!rect) return; const ctx=els.overlay.getContext('2d'); ctx.clearRect(0,0,els.overlay.width,els.overlay.height); if(!pose || !pose.keypoints) return; const map=Object.fromEntries(pose.keypoints.map(k=>[k.name,k])); ctx.lineWidth=4; ctx.strokeStyle='#66d9ff'; ctx.fillStyle='#7cffc2'; for(const [a,b] of EDGES){ const ka=map[a], kb=map[b]; if(!valid(ka)||!valid(kb)) continue; ctx.beginPath(); ctx.moveTo(rect.offsetX+ka.x*rect.scaleX, rect.offsetY+ka.y*rect.scaleY); ctx.lineTo(rect.offsetX+kb.x*rect.scaleX, rect.offsetY+kb.y*rect.scaleY); ctx.stroke(); } for(const kp of pose.keypoints){ if(!valid(kp)) continue; ctx.beginPath(); ctx.arc(rect.offsetX+kp.x*rect.scaleX, rect.offsetY+kp.y*rect.scaleY, 5, 0, Math.PI*2); ctx.fill(); } }
+
+    function addEvent(type, label, extra=''){ const now=new Date().toISOString(); state.events.unshift({time:now, type, label, extra}); state.events = state.events.slice(0,50); renderEvents(); els.downloadBtn.disabled = state.events.length === 0; }
+    function renderEvents(){ if(!state.events.length){ els.events.innerHTML='<div class="small">Todavía no hay eventos.</div>'; return; } els.events.innerHTML=''; for(const ev of state.events){ const el=document.createElement('div'); el.className='item'; el.innerHTML=`<strong>${ev.type}: ${ev.label}</strong><div class="small">${new Date(ev.time).toLocaleString()}${ev.extra ? ' · ' + ev.extra : ''}</div>`; els.events.appendChild(el); } }
+    function canFire(key, ms, now){ const last=state.cooldowns.get(key)||0; if(now-last < ms) return false; state.cooldowns.set(key, now); return true; }
+
+    function detectGesture(sample){ const k = sample.map; if(!k.left_shoulder||!k.right_shoulder||!k.left_wrist||!k.right_wrist) return 'sin gesto'; const shoulderY = (k.left_shoulder.y + k.right_shoulder.y) / 2; const shoulderWidth = Math.abs(k.left_shoulder.x - k.right_shoulder.x); const wristsAboveShoulders = valid(k.left_wrist) && valid(k.right_wrist) && k.left_wrist.y < shoulderY && k.right_wrist.y < shoulderY; if(wristsAboveShoulders) return 'manos_arriba'; if(valid(k.left_wrist) && k.left_wrist.y < shoulderY && (!valid(k.right_wrist) || k.right_wrist.y >= shoulderY)) return 'mano_izquierda_arriba'; if(valid(k.right_wrist) && k.right_wrist.y < shoulderY && (!valid(k.left_wrist) || k.left_wrist.y >= shoulderY)) return 'mano_derecha_arriba';
+      const tPose = valid(k.left_wrist)&&valid(k.right_wrist)&&valid(k.left_elbow)&&valid(k.right_elbow)&&Math.abs(k.left_wrist.y-k.left_shoulder.y)<shoulderWidth*0.25&&Math.abs(k.right_wrist.y-k.right_shoulder.y)<shoulderWidth*0.25&&k.left_wrist.x<k.left_shoulder.x&&k.right_wrist.x>k.right_shoulder.x; if(tPose) return 't_pose';
+      const crossed = valid(k.left_wrist)&&valid(k.right_wrist)&&valid(k.left_shoulder)&&valid(k.right_shoulder)&&k.left_wrist.x > k.right_shoulder.x && k.right_wrist.x < k.left_shoulder.x; if(crossed) return 'brazos_cruzados';
+      return 'neutro'; }
+
+    function detectAction(now){
+      const h = state.poseHistory; if(h.length < 4) return 'sin acción';
+      const latest = h[h.length-1];
+      const recent = h.filter(s => now - s.ts < 1400);
+      if(recent.length < 3) return 'sin acción';
+      const shoulders = recent.map(s => s.shoulderY).filter(v => Number.isFinite(v));
+      const hips = recent.map(s => s.hipY).filter(v => Number.isFinite(v));
+      const kneeAngles = recent.map(s => s.avgKneeAngle).filter(v => Number.isFinite(v));
+      const wristXs = recent.map(s => ({t:s.ts, x:s.rightWristX})).filter(v => Number.isFinite(v.x));
+      let action = 'sin acción';
+
+      if(shoulders.length){
+        const minS = Math.min(...shoulders), maxS = Math.max(...shoulders), delta = maxS - minS;
+        const baseline = latest.bodySize || 1;
+        if(delta > baseline * 0.16 && latest.shoulderY <= minS + baseline * 0.04) action = 'salto';
+      }
+      if(action === 'sin acción' && kneeAngles.length){
+        const minK = Math.min(...kneeAngles); const lastK = kneeAngles[kneeAngles.length-1];
+        if(minK < 115 && lastK < 135) action = 'sentadilla';
+      }
+      if(action === 'sin acción' && wristXs.length >= 4){
+        let directionChanges = 0; let prevDir = 0;
+        for(let i=1;i<wristXs.length;i++){
+          const d = wristXs[i].x - wristXs[i-1].x; const dir = Math.abs(d) < (latest.bodySize||1)*0.03 ? 0 : Math.sign(d);
+          if(dir && prevDir && dir !== prevDir) directionChanges++;
+          if(dir) prevDir = dir;
+        }
+        const amp = Math.max(...wristXs.map(w=>w.x)) - Math.min(...wristXs.map(w=>w.x));
+        if(directionChanges >= 2 && amp > (latest.bodySize||1) * 0.25) action = 'saludo';
+      }
+      return action;
+    }
+
+    function angle(a,b,c){ if(!a||!b||!c||!valid(a)||!valid(b)||!valid(c)) return NaN; const abx=a.x-b.x, aby=a.y-b.y, cbx=c.x-b.x, cby=c.y-b.y; const dot=abx*cbx+aby*cby; const mag1=Math.hypot(abx,aby), mag2=Math.hypot(cbx,cby); if(!mag1||!mag2) return NaN; const cos=Math.max(-1,Math.min(1,dot/(mag1*mag2))); return Math.acos(cos)*180/Math.PI; }
+
+    function buildSample(pose, ts){ const map=Object.fromEntries(pose.keypoints.map(k=>[k.name,k])); const shoulderY = valid(map.left_shoulder)&&valid(map.right_shoulder) ? (map.left_shoulder.y + map.right_shoulder.y)/2 : NaN; const hipY = valid(map.left_hip)&&valid(map.right_hip) ? (map.left_hip.y + map.right_hip.y)/2 : NaN; const shoulderWidth = valid(map.left_shoulder)&&valid(map.right_shoulder) ? Math.abs(map.left_shoulder.x - map.right_shoulder.x) : 1; const bodySize = valid(map.nose)&&valid(map.left_ankle)&&valid(map.right_ankle) ? Math.max(Math.abs(((map.left_ankle.y+map.right_ankle.y)/2)-map.nose.y), shoulderWidth*2) : shoulderWidth*3; const leftKnee=angle(map.left_hip,map.left_knee,map.left_ankle); const rightKnee=angle(map.right_hip,map.right_knee,map.right_ankle); const avgKneeAngle = Number.isFinite(leftKnee)&&Number.isFinite(rightKnee) ? (leftKnee+rightKnee)/2 : Number.isFinite(leftKnee) ? leftKnee : rightKnee; return {ts, map, shoulderY, hipY, bodySize, avgKneeAngle, rightWristX: valid(map.right_wrist) ? map.right_wrist.x : NaN}; }
+
+    async function processPose(ts){ if(!state.detector || !state.stream) return; const poses = await state.detector.estimatePoses(els.video, {flipHorizontal:false}); const pose = poses && poses[0] ? poses[0] : null; drawPoseOnOverlay(pose); if(!pose) return; const sample = buildSample(pose, ts); state.poseHistory.push(sample); state.poseHistory = state.poseHistory.filter(s => ts - s.ts < 1800); const gesture = detectGesture(sample); const action = detectAction(ts); state.currentGesture = gesture; state.currentAction = action; updateMetrics();
+      if(gesture !== 'neutro' && gesture !== 'sin gesto' && canFire(`g:${gesture}`, 1200, ts)){ addEvent('gesto', gesture); }
+      if(action !== 'sin acción' && canFire(`a:${action}`, 1600, ts)){ addEvent('acción', action); }
+    }
+
+    async function liveLoop(ts){ if(!state.running || state.mode !== 'live') return; const minDelta = 1000 / state.maxFps; if(ts - state.lastProcessTime >= minDelta){ state.lastProcessTime = ts; await processPose(ts); state.frameCounter++; } if(ts - state.lastFpsTs >= 1000){ state.displayedFps = state.frameCounter; state.frameCounter = 0; state.lastFpsTs = ts; updateMetrics(); } state.rafId = requestAnimationFrame(liveLoop); }
+
+    async function startCamera(){ if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){ setStatus('Cámara no compatible','err','Este navegador no soporta getUserMedia()'); return; } if(!state.detector){ setStatus('Carga un modelo primero','err','Selecciona Lightning o Thunder y pulsa cargar'); return; } try{ stopCamera(); setStatus('Abriendo cámara…','warn','Solicitando permisos'); const stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:state.facingMode}, width:{ideal:1280}, height:{ideal:720}}}); state.stream=stream; els.video.srcObject=stream; await els.video.play(); els.video.style.display='block'; els.viewer.classList.remove('empty'); state.mode='live'; state.lastProcessTime=0; state.lastFpsTs=performance.now(); state.frameCounter=0; state.displayedFps=0; state.poseHistory=[]; state.currentGesture='—'; state.currentAction='—'; updateMetrics(); resizeOverlay(); state.running=true; setStatus('Cámara activa','ok', `${modelLabel()} · ${state.facingMode === 'environment' ? 'trasera' : 'frontal'}`); state.rafId=requestAnimationFrame(liveLoop); } catch(err){ setStatus('No se pudo abrir la cámara','err', err.message); log(`Error cámara: ${err.message}`); } }
+    function stopCamera(){ stopLoop(); if(state.stream){ state.stream.getTracks().forEach(t=>t.stop()); state.stream=null; } els.video.pause(); els.video.srcObject=null; if(state.mode==='live'){ state.mode='idle'; state.poseHistory=[]; state.currentGesture='—'; state.currentAction='—'; updateMetrics(); clearOverlay(); els.viewer.classList.add('empty'); els.video.style.display='none'; setStatus('Cámara detenida','ok','Puedes abrirla de nuevo'); } }
+    function clearEvents(){ state.events=[]; state.cooldowns.clear(); renderEvents(); els.downloadBtn.disabled=true; setStatus('Eventos borrados','ok','Historial limpio'); }
+    function downloadEvents(){ if(!state.events.length) return; const payload={ model:modelLabel(), exportedAt:new Date().toISOString(), events:state.events }; const blob=new Blob([JSON.stringify(payload,null,2)], {type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='vision-gestures-events.json'; a.click(); URL.revokeObjectURL(url); setStatus('Datos descargados','ok','Se ha exportado el historial de eventos'); }
+
+    els.loadModelBtn.addEventListener('click', loadDetector);
+    els.startBtn.addEventListener('click', startCamera);
+    els.switchBtn.addEventListener('click', async ()=>{ state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment'; if(state.mode==='live') await startCamera(); else setStatus('Cámara preparada','ok', state.facingMode === 'environment' ? 'La próxima apertura usará la trasera' : 'La próxima apertura usará la frontal'); });
+    els.stopBtn.addEventListener('click', stopCamera);
+    els.clearBtn.addEventListener('click', clearEvents);
+    els.downloadBtn.addEventListener('click', downloadEvents);
+    els.confidenceRange.addEventListener('input', e=>{ state.minScore = Number(e.target.value)/100; els.confidenceValue.textContent = `${e.target.value}%`; });
+    els.fpsRange.addEventListener('input', e=>{ state.maxFps = Number(e.target.value); els.fpsValue.textContent = e.target.value; });
+    window.addEventListener('resize', ()=>{ if(state.mode==='live') resizeOverlay(); });
+    window.addEventListener('beforeunload', stopCamera);
+    window.addEventListener('load', ()=>{ els.confidenceValue.textContent=`${Math.round(state.minScore*100)}%`; els.fpsValue.textContent=String(state.maxFps); updateMetrics(); renderEvents(); });
+  </script>
+</body>
+</html>
