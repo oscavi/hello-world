@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Workflow Studio Browser YOLO</title>
+  <style>
+    body{margin:0;background:#0b1220;color:#fff;font-family:Arial,sans-serif;max-width:1560px;padding:16px;margin:auto}
+    section{background:#111827;border:1px solid #334155;border-radius:16px;padding:16px;margin:12px 0}
+    h1,h2{margin:0 0 10px}.small{color:#cbd5e1;font-size:14px;line-height:1.45}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,button,select,textarea{padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#fff}
+    input,select,textarea{width:100%}button{cursor:pointer}.pri{background:#2563eb;border:none}.vio{background:#7c3aed;border:none}.ghost{background:transparent}.danger{background:#dc2626;border:none}.okbtn{background:#059669;border:none}
+    .item,.metric{padding:12px;border:1px solid #334155;border-radius:12px;background:#0f172a}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .viewer{position:relative;min-height:360px;border:1px solid #334155;border-radius:12px;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    #imageView,#liveVideo{max-width:100%;max-height:70vh;display:none}#imageCanvas,#liveCanvas{position:absolute;inset:0;pointer-events:none}
+    #log{white-space:pre-wrap;background:#020617;padding:10px;border-radius:12px;min-height:180px;max-height:360px;overflow:auto}
+    .chip{display:inline-block;padding:4px 8px;border:1px solid #334155;border-radius:999px;margin:4px 6px 0 0;color:#cbd5e1}.good{color:#86efac}.warn{color:#fbbf24}.err{color:#fca5a5}
+    .result-card{padding:12px;border:1px solid #334155;border-radius:12px;background:#0b1325}.mono{font-family:ui-monospace,monospace}
+    @media(max-width:1000px){.grid,.metrics{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <section>
+    <h1>Workflow Studio Browser YOLO</h1>
+    <p class="small">Herramienta de <b>detección YOLO en navegador</b> con <b>ONNX Runtime Web</b>. Permite cargar un modelo YOLO exportado a ONNX, pasar imágenes, usar cámara en tiempo real, ajustar umbrales y visualizar cajas. Está pensada para <b>inferencia</b>. El entrenamiento YOLO completo sigue siendo mejor fuera del navegador.</p>
+    <div><span class="chip">YOLO ONNX</span><span class="chip">Imagen</span><span class="chip">Tiempo real</span><span class="chip">NMS</span><span class="chip">WebGPU/WASM</span></div>
+  </section>
+
+  <div class="grid">
+    <section>
+      <h2>1. Modelo</h2>
+      <div class="row">
+        <input id="onnxInput" type="file" accept=".onnx">
+        <input id="labelsInput" type="file" accept=".json,.txt">
+      </div>
+      <div class="row" style="margin-top:10px">
+        <select id="providerSelect">
+          <option value="auto" selected>Auto (WebGPU → WASM)</option>
+          <option value="webgpu">Forzar WebGPU</option>
+          <option value="wasm">Forzar WASM</option>
+        </select>
+        <select id="decoderSelect">
+          <option value="auto" selected>Auto</option>
+          <option value="yolo_xywh">YOLO [cx,cy,w,h,obj,clases]</option>
+          <option value="xyxy_score_cls">[x1,y1,x2,y2,score,cls]</option>
+        </select>
+        <button id="loadModelBtn" class="pri">Cargar modelo</button>
+      </div>
+      <div class="metrics" style="margin-top:12px">
+        <div class="metric"><div id="mProvider">—</div><div class="small">Provider</div></div>
+        <div class="metric"><div id="mInput">—</div><div class="small">Input</div></div>
+        <div class="metric"><div id="mLabels">0</div><div class="small">Clases</div></div>
+        <div class="metric"><div id="mStatus">Sin cargar</div><div class="small">Estado</div></div>
+      </div>
+      <div id="modelInfo" class="item" style="margin-top:12px">Todavía no se ha cargado ningún modelo.</div>
+    </section>
+
+    <section>
+      <h2>2. Ajustes de inferencia</h2>
+      <div class="row">
+        <div class="item" style="flex:1"><div class="small">Confianza mínima</div><input id="confInput" type="number" min="0.01" max="0.99" step="0.01" value="0.25"></div>
+        <div class="item" style="flex:1"><div class="small">IoU NMS</div><input id="iouInput" type="number" min="0.01" max="0.95" step="0.01" value="0.45"></div>
+        <div class="item" style="flex:1"><div class="small">Tamaño entrada</div><input id="sizeInput" type="number" min="320" max="1280" step="32" value="640"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input id="imageInput" type="file" accept="image/*" multiple>
+        <button id="runImageBtn" class="vio">Detectar en imágenes</button>
+      </div>
+      <p class="small" style="margin-top:8px">Etiquetas: puedes cargar <code>labels.json</code> con <code>{"labels":[...]}</code> o un <code>classes.txt</code> simple, una clase por línea.</p>
+      <div id="imageResults" class="item" style="margin-top:12px">Todavía no se ha ejecutado ninguna detección.</div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>3. Inferencia en imagen</h2>
+      <div class="viewer"><img id="imageView"><canvas id="imageCanvas"></canvas></div>
+    </section>
+
+    <section>
+      <h2>4. Tiempo real con cámara</h2>
+      <div class="row">
+        <button id="openCameraBtn" class="pri">Abrir cámara</button>
+        <button id="closeCameraBtn" class="ghost">Cerrar cámara</button>
+        <button id="startLiveBtn" class="vio">Iniciar detección</button>
+        <button id="stopLiveBtn" class="danger">Parar detección</button>
+      </div>
+      <div class="viewer" style="margin-top:12px"><video id="liveVideo" autoplay playsinline muted></video><canvas id="liveCanvas"></canvas></div>
+      <div id="liveResults" class="item" style="margin-top:12px">Sin detección en tiempo real.</div>
+    </section>
+  </div>
+
+  <section>
+    <h2>5. Recomendación para Roboflow</h2>
+    <div class="item">
+      <div><b>Para entrenar YOLO fuera del navegador:</b> exporta normalmente como <span class="mono">YOLOv5 PyTorch</span>, <span class="mono">YOLOv8</span> o el formato exacto que pida tu stack.</div>
+      <div style="margin-top:8px"><b>Para esta app:</b> lo importante es el <span class="mono">modelo ONNX</span> ya exportado para inferencia. Las etiquetas pueden venir como <span class="mono">classes.txt</span> o <span class="mono">labels.json</span>.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>6. Registro</h2>
+    <pre id="log"></pre>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    const els = {
+      onnxInput:$('onnxInput'), labelsInput:$('labelsInput'), providerSelect:$('providerSelect'), decoderSelect:$('decoderSelect'), loadModelBtn:$('loadModelBtn'),
+      mProvider:$('mProvider'), mInput:$('mInput'), mLabels:$('mLabels'), mStatus:$('mStatus'), modelInfo:$('modelInfo'),
+      confInput:$('confInput'), iouInput:$('iouInput'), sizeInput:$('sizeInput'), imageInput:$('imageInput'), runImageBtn:$('runImageBtn'), imageResults:$('imageResults'), imageView:$('imageView'), imageCanvas:$('imageCanvas'),
+      openCameraBtn:$('openCameraBtn'), closeCameraBtn:$('closeCameraBtn'), startLiveBtn:$('startLiveBtn'), stopLiveBtn:$('stopLiveBtn'), liveVideo:$('liveVideo'), liveCanvas:$('liveCanvas'), liveResults:$('liveResults'),
+      log:$('log')
+    };
+
+    const state = { session:null, labels:[], inputSize:640, inputName:null, outputNames:[], provider:'', decoder:'auto', liveStream:null, liveRunning:false, liveTimer:null };
+
+    function log(msg){ const t = new Date().toLocaleTimeString(); els.log.textContent += `[${t}] ${msg}\n`; els.log.scrollTop = els.log.scrollHeight; }
+    function setStatus(msg){ els.mStatus.textContent = msg; }
+
+    function parseLabelsText(text){
+      try{ const obj = JSON.parse(text); if(Array.isArray(obj)) return obj; if(Array.isArray(obj.labels)) return obj.labels; }catch(_e){}
+      return text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    }
+
+    async function loadModel(){
+      const modelFile = els.onnxInput.files[0];
+      if(!modelFile) throw new Error('Selecciona un archivo ONNX.');
+      const requested = els.providerSelect.value;
+      const providers = requested === 'auto' ? ['webgpu','wasm'] : [requested];
+      const buffer = await modelFile.arrayBuffer();
+      state.session = await ort.InferenceSession.create(buffer, { executionProviders: providers });
+      state.provider = providers.join(' → ');
+      state.inputName = state.session.inputNames[0];
+      state.outputNames = state.session.outputNames.slice();
+      state.decoder = els.decoderSelect.value;
+      state.inputSize = Number(els.sizeInput.value || 640);
+      const labelFile = els.labelsInput.files[0];
+      state.labels = [];
+      if(labelFile){ state.labels = parseLabelsText(await labelFile.text()); }
+      els.mProvider.textContent = providers.join(', ');
+      els.mInput.textContent = state.inputName || '—';
+      els.mLabels.textContent = String(state.labels.length);
+      els.modelInfo.innerHTML = `<div><b>Input:</b> <span class="mono">${state.inputName}</span></div><div><b>Outputs:</b> <span class="mono">${state.outputNames.join(', ')}</span></div><div><b>Decoder:</b> <span class="mono">${state.decoder}</span></div>`;
+      setStatus('Cargado');
+      log(`Modelo ONNX cargado. Inputs: ${state.inputName}. Outputs: ${state.outputNames.join(', ')}`);
+    }
+
+    function letterboxToTensor(img, size){
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#000'; ctx.fillRect(0,0,size,size);
+      const scale = Math.min(size / img.width, size / img.height);
+      const newW = Math.round(img.width * scale);
+      const newH = Math.round(img.height * scale);
+      const dx = Math.floor((size - newW) / 2);
+      const dy = Math.floor((size - newH) / 2);
+      ctx.drawImage(img, dx, dy, newW, newH);
+      const { data } = ctx.getImageData(0,0,size,size);
+      const chw = new Float32Array(1 * 3 * size * size);
+      for(let y=0;y<size;y++){
+        for(let x=0;x<size;x++){
+          const src = (y * size + x) * 4;
+          const dst = y * size + x;
+          chw[dst] = data[src] / 255;
+          chw[size*size + dst] = data[src+1] / 255;
+          chw[2*size*size + dst] = data[src+2] / 255;
+        }
+      }
+      return { tensor: new ort.Tensor('float32', chw, [1,3,size,size]), scale, dx, dy, inputSize:size };
+    }
+
+    function iou(a,b){
+      const x1 = Math.max(a.x1,b.x1), y1 = Math.max(a.y1,b.y1), x2 = Math.min(a.x2,b.x2), y2 = Math.min(a.y2,b.y2);
+      const inter = Math.max(0, x2-x1) * Math.max(0, y2-y1);
+      const areaA = Math.max(0,a.x2-a.x1) * Math.max(0,a.y2-a.y1);
+      const areaB = Math.max(0,b.x2-b.x1) * Math.max(0,b.y2-b.y1);
+      return inter / Math.max(1e-6, areaA + areaB - inter);
+    }
+
+    function nms(boxes, iouThr){
+      const out = [];
+      const sorted = [...boxes].sort((a,b)=>b.score-a.score);
+      while(sorted.length){
+        const best = sorted.shift();
+        out.push(best);
+        for(let i=sorted.length-1;i>=0;i--){
+          if(sorted[i].classId === best.classId && iou(sorted[i], best) > iouThr) sorted.splice(i,1);
+        }
+      }
+      return out;
+    }
+
+    function normalizeDetections(boxes, originalW, originalH, prep){
+      return boxes.map(b => {
+        const x1 = Math.max(0, (b.x1 - prep.dx) / prep.scale);
+        const y1 = Math.max(0, (b.y1 - prep.dy) / prep.scale);
+        const x2 = Math.min(originalW, (b.x2 - prep.dx) / prep.scale);
+        const y2 = Math.min(originalH, (b.y2 - prep.dy) / prep.scale);
+        return { ...b, x1, y1, x2, y2 };
+      }).filter(b => b.x2 > b.x1 && b.y2 > b.y1);
+    }
+
+    function decodeAuto(output, confThr){
+      const dims = output.dims || [];
+      const data = output.data;
+      if(dims.length === 3 && dims[2] >= 6) return decodeYoloXYWH(output, confThr);
+      if(dims.length === 2 && dims[1] >= 6) return decodeXYXY(output, confThr);
+      if(dims.length === 3 && dims[1] >= 6) return decodeXYXY(output, confThr);
+      throw new Error(`Formato de salida no reconocido: dims=${JSON.stringify(dims)}`);
+    }
+
+    function decodeYoloXYWH(output, confThr){
+      const data = output.data;
+      const dims = output.dims;
+      const n = dims[dims.length - 2];
+      const stride = dims[dims.length - 1];
+      const boxes = [];
+      for(let i=0;i<n;i++){
+        const off = i * stride;
+        const cx = data[off], cy = data[off+1], w = data[off+2], h = data[off+3];
+        const obj = data[off+4];
+        let bestCls = 0, bestProb = 0;
+        for(let c=5;c<stride;c++){
+          const p = data[off+c];
+          if(p > bestProb){ bestProb = p; bestCls = c-5; }
+        }
+        const score = obj * bestProb;
+        if(score < confThr) continue;
+        boxes.push({ classId: bestCls, score, x1: cx - w/2, y1: cy - h/2, x2: cx + w/2, y2: cy + h/2 });
+      }
+      return boxes;
+    }
+
+    function decodeXYXY(output, confThr){
+      const data = output.data;
+      const dims = output.dims;
+      const rows = dims[dims.length - 2];
+      const cols = dims[dims.length - 1];
+      const boxes = [];
+      for(let i=0;i<rows;i++){
+        const off = i * cols;
+        const x1 = data[off], y1 = data[off+1], x2 = data[off+2], y2 = data[off+3];
+        const score = data[off+4];
+        const classId = Math.round(data[off+5] || 0);
+        if(score < confThr) continue;
+        boxes.push({ classId, score, x1, y1, x2, y2 });
+      }
+      return boxes;
+    }
+
+    async function detectInElement(imgEl){
+      if(!state.session) throw new Error('Carga un modelo ONNX primero.');
+      const confThr = Number(els.confInput.value || 0.25);
+      const iouThr = Number(els.iouInput.value || 0.45);
+      const size = Number(els.sizeInput.value || 640);
+      const prep = letterboxToTensor(imgEl, size);
+      const feeds = { [state.inputName]: prep.tensor };
+      const out = await state.session.run(feeds);
+      const outputName = state.outputNames[0];
+      const output = out[outputName];
+      const decoder = els.decoderSelect.value;
+      let boxes = decoder === 'auto' ? decodeAuto(output, confThr) : (decoder === 'yolo_xywh' ? decodeYoloXYWH(output, confThr) : decodeXYXY(output, confThr));
+      boxes = normalizeDetections(boxes, imgEl.width || imgEl.videoWidth, imgEl.height || imgEl.videoHeight, prep);
+      boxes = nms(boxes, iouThr).slice(0, 100);
+      return boxes;
+    }
+
+    function drawBoxes(canvas, sourceEl, boxes){
+      const rect = sourceEl.getBoundingClientRect();
+      const width = sourceEl.clientWidth || sourceEl.width || sourceEl.videoWidth;
+      const height = sourceEl.clientHeight || sourceEl.height || sourceEl.videoHeight;
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0,0,width,height);
+      if(!boxes.length) return;
+      const sx = width / (sourceEl.width || sourceEl.videoWidth || width);
+      const sy = height / (sourceEl.height || sourceEl.videoHeight || height);
+      ctx.lineWidth = 2;
+      ctx.font = '14px Arial';
+      boxes.forEach((b, idx) => {
+        const label = state.labels[b.classId] || `cls_${b.classId}`;
+        const color = `hsl(${(idx*47)%360} 80% 60%)`;
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        const x = b.x1 * sx, y = b.y1 * sy, w = (b.x2 - b.x1) * sx, h = (b.y2 - b.y1) * sy;
+        ctx.strokeRect(x,y,w,h);
+        const text = `${label} ${(b.score*100).toFixed(1)}%`;
+        const tw = ctx.measureText(text).width + 10;
+        ctx.fillRect(x, Math.max(0,y-20), tw, 20);
+        ctx.fillStyle = '#08111d';
+        ctx.fillText(text, x+5, Math.max(14,y-5));
+      });
+    }
+
+    function renderBoxSummary(boxes){
+      if(!boxes.length) return '<div>No se han detectado objetos.</div>';
+      return boxes.slice(0,10).map(b => `<div class="small"><span class="mono">${state.labels[b.classId] || `cls_${b.classId}`}</span> · ${(b.score*100).toFixed(2)}% · [${b.x1.toFixed(0)}, ${b.y1.toFixed(0)}, ${b.x2.toFixed(0)}, ${b.y2.toFixed(0)}]</div>`).join('');
+    }
+
+    function fileToImage(file){
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => resolve({ img, url });
+        img.onerror = reject;
+        img.src = url;
+      });
+    }
+
+    async function runImageInference(){
+      const files = Array.from(els.imageInput.files || []);
+      if(!files.length) throw new Error('Selecciona al menos una imagen.');
+      let count = 0;
+      for(const file of files){
+        const { img, url } = await fileToImage(file);
+        if(count === 0){ els.imageView.src = url; els.imageView.style.display = 'block'; await new Promise(r => els.imageView.onload = r); }
+        const boxes = await detectInElement(img);
+        if(count === 0) drawBoxes(els.imageCanvas, els.imageView, boxes);
+        els.imageResults.innerHTML = `<div><b>Archivo:</b> ${file.name}</div><div style="margin-top:8px">${renderBoxSummary(boxes)}</div>`;
+        log(`Detección completada en ${file.name}: ${boxes.length} objetos.`);
+        count++;
+      }
+    }
+
+    async function openLiveCamera(){
+      if(state.liveStream) return;
+      state.liveStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }, audio:false });
+      els.liveVideo.srcObject = state.liveStream;
+      await els.liveVideo.play();
+      els.liveVideo.style.display = 'block';
+      log('Cámara abierta.');
+    }
+
+    function closeLiveCamera(){
+      stopLiveInference();
+      if(state.liveStream){ state.liveStream.getTracks().forEach(t=>t.stop()); state.liveStream = null; }
+      els.liveVideo.pause(); els.liveVideo.srcObject = null; els.liveVideo.style.display = 'none';
+      const ctx = els.liveCanvas.getContext('2d'); ctx.clearRect(0,0,els.liveCanvas.width, els.liveCanvas.height);
+      els.liveResults.textContent = 'Sin detección en tiempo real.';
+      log('Cámara cerrada.');
+    }
+
+    async function inferLiveLoop(){
+      if(!state.liveRunning || !state.liveStream) return;
+      try{
+        const boxes = await detectInElement(els.liveVideo);
+        drawBoxes(els.liveCanvas, els.liveVideo, boxes);
+        els.liveResults.innerHTML = `<div><b>Tiempo real</b></div><div style="margin-top:8px">${renderBoxSummary(boxes)}</div>`;
+      }catch(e){
+        els.liveResults.innerHTML = `<div class="err">${e.message}</div>`;
+      }finally{
+        if(state.liveRunning) state.liveTimer = setTimeout(inferLiveLoop, 180);
+      }
+    }
+
+    function startLiveInference(){
+      if(state.liveRunning) return;
+      state.liveRunning = true;
+      log('Detección en tiempo real iniciada.');
+      inferLiveLoop();
+    }
+
+    function stopLiveInference(){
+      state.liveRunning = false;
+      if(state.liveTimer){ clearTimeout(state.liveTimer); state.liveTimer = null; }
+      log('Detección en tiempo real detenida.');
+    }
+
+    els.loadModelBtn.onclick = () => loadModel().catch(e => { setStatus('Error'); log(e.message); });
+    els.runImageBtn.onclick = () => runImageInference().catch(e => log(e.message));
+    els.openCameraBtn.onclick = () => openLiveCamera().catch(e => log(e.message));
+    els.closeCameraBtn.onclick = closeLiveCamera;
+    els.startLiveBtn.onclick = () => startLiveInference();
+    els.stopLiveBtn.onclick = () => stopLiveInference();
+
+    log('Aplicación lista.');
+  </script>
+</body>
+</html>
