@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Motion Avatar Studio v11 DualCam Basic</title>
+  <style>
+    body{margin:0;background:#0b1220;color:#fff;font-family:Arial,sans-serif;max-width:1580px;padding:16px;margin:auto}
+    section{background:#111827;border:1px solid #334155;border-radius:16px;padding:16px;margin:12px 0}
+    h1,h2,h3{margin:0 0 10px}.small{color:#cbd5e1;font-size:14px;line-height:1.45}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,button,select{padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#fff}
+    input,select{width:100%}button{cursor:pointer}.pri{background:#2563eb;border:none}.vio{background:#7c3aed;border:none}.ghost{background:transparent}.danger{background:#dc2626;border:none}.okbtn{background:#059669;border:none}
+    .item,.metric{padding:12px;border:1px solid #334155;border-radius:12px;background:#0f172a}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .viewer{position:relative;min-height:260px;border:1px solid #334155;border-radius:14px;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    video{max-width:100%;max-height:60vh;display:none}.overlay{position:absolute;inset:0;pointer-events:none}
+    #avatarView{height:580px;border:1px solid #334155;border-radius:14px;background:#0a1324;cursor:grab}
+    .hud{position:absolute;top:12px;left:12px;display:flex;gap:8px;flex-wrap:wrap;z-index:2}.hint{padding:8px 10px;border:1px solid #334155;border-radius:999px;background:rgba(2,6,23,.9);color:#cbd5e1}
+    .mapping{display:grid;grid-template-columns:220px 1fr 110px;gap:8px;align-items:center}.activeRole{outline:2px solid #8b5cf6}.chip{display:inline-block;padding:4px 8px;border:1px solid #334155;border-radius:999px;margin:4px 6px 0 0;color:#cbd5e1}.chip.active{outline:2px solid #22c55e}
+    pre{white-space:pre-wrap;background:#020617;padding:10px;border-radius:12px;min-height:120px}.mono{font-family:ui-monospace,monospace}
+    @media(max-width:1000px){.grid,.metrics{grid-template-columns:1fr}.mapping{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <section>
+    <h1>Motion Avatar Studio v11 · DualCam Basic</h1>
+    <p class="small">Versión básica con <b>2 webcams</b>. Captura landmarks desde dos vistas, hace una triangulación aproximada para obtener un <b>stickman 3D</b> y usa ese esqueleto para mover el avatar. No requiere calibración compleja, pero funciona mejor si las cámaras están separadas horizontalmente y apuntan al sujeto desde ángulos distintos.</p>
+  </section>
+
+  <div class="grid">
+    <section>
+      <h2>1. Cámaras</h2>
+      <div class="row">
+        <select id="cam1Select"></select>
+        <select id="cam2Select"></select>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="refreshCamsBtn">Actualizar cámaras</button>
+        <button id="openDualBtn" class="pri">Abrir dual-cam</button>
+        <button id="closeDualBtn" class="ghost">Cerrar cámaras</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="item" style="flex:1"><div class="small">Separación aprox. cámaras (m)</div><input id="baselineInput" type="number" min="0.1" max="3" step="0.05" value="0.6"></div>
+        <div class="item" style="flex:1"><div class="small">Factor profundidad</div><input id="depthGainInput" type="number" min="0.1" max="5" step="0.1" value="1.2"></div>
+      </div>
+      <div class="metrics" style="margin-top:12px">
+        <div class="metric"><div id="mDualState">inactivo</div><div class="small">Estado</div></div>
+        <div class="metric"><div id="mTracked">0</div><div class="small">Landmarks 3D</div></div>
+        <div class="metric"><div id="mDepth">—</div><div class="small">Prof. media</div></div>
+        <div class="metric"><div id="mDualFps">—</div><div class="small">FPS</div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Vista cámaras</h2>
+      <div class="grid">
+        <div class="viewer"><video id="video1" playsinline muted autoplay></video><canvas id="overlay1" class="overlay"></canvas></div>
+        <div class="viewer"><video id="video2" playsinline muted autoplay></video><canvas id="overlay2" class="overlay"></canvas></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>3. Avatar y visor</h2>
+      <div class="row"><input id="avatarInput" type="file" accept=".glb,.gltf,.zip,application/zip,model/gltf-binary,model/gltf+json"><button id="loadBtn" class="pri">Cargar avatar</button><button id="exampleBtn">Humanoide ejemplo</button></div>
+      <div class="row" style="margin-top:10px"><button id="frontViewBtn">Vista frontal</button><button id="sideViewBtn">Vista lateral</button><button id="topViewBtn">Vista superior</button><button id="resetViewBtn" class="ghost">Reset vista</button></div>
+      <div style="margin-top:12px;position:relative"><div class="hud"><button id="pickModeBtn" class="ghost">Modo selección: OFF</button><span id="roleBadge" class="hint">Rol: ninguno</span><span id="boneBadge" class="hint">Hueso: ninguno</span></div><div id="avatarView"></div></div>
+      <div class="small" id="avatarInfo" style="margin-top:8px">Avatar humanoide ejemplo activo.</div>
+    </section>
+
+    <section>
+      <h2>4. Esqueleto 3D</h2>
+      <div class="item"><div><b>Modo:</b> triangulación básica</div><div class="small">La profundidad se estima por disparidad entre la posición horizontal de landmarks en ambas cámaras.</div></div>
+      <div id="triangulationInfo" class="item" style="margin-top:12px">Todavía no hay datos dual-cam.</div>
+      <div id="summary" class="item" style="margin-top:12px">Sin captura dual.</div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>5. Editor de mapeo</h2>
+      <div class="row"><button id="autoMapBtn" class="pri">Auto-mapear</button><button id="clearMapBtn" class="ghost">Limpiar mapeo</button><button id="saveMapBtn">Guardar mapping.json</button><input id="mapInput" type="file" accept="application/json,.json" style="max-width:180px"><button id="loadMapBtn">Cargar mapping.json</button></div>
+      <div class="small" style="margin-top:8px">Selecciona un rol y luego haz click en el modelo para asignarlo. También puedes usar el desplegable.</div>
+      <div id="mappingList" style="margin-top:12px"></div>
+    </section>
+
+    <section>
+      <h2>6. Estado</h2>
+      <div id="bonesBox" class="item">Sin avatar cargado.</div>
+      <div id="status" class="item" style="margin-top:12px">Aplicación lista.</div>
+      <pre id="log" style="margin-top:12px"></pre>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.152.2/examples/js/loaders/GLTFLoader.js"></script>
+  <script>window.GLTFLoader = window.GLTFLoader || window.THREE?.GLTFLoader;</script>
+  <script>
+    const ROLES=[['hips','Cadera'],['spine','Columna'],['neck','Cuello'],['head','Cabeza'],['leftUpperArm','Brazo sup izq'],['leftLowerArm','Brazo inf izq'],['leftHand','Mano izq'],['rightUpperArm','Brazo sup der'],['rightLowerArm','Brazo inf der'],['rightHand','Mano der'],['leftUpperLeg','Pierna sup izq'],['leftLowerLeg','Pierna inf izq'],['leftFoot','Pie izq'],['rightUpperLeg','Pierna sup der'],['rightLowerLeg','Pierna inf der'],['rightFoot','Pie der']];
+    const BONES=[[11,13],[13,15],[12,14],[14,16],[11,12],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
+    const $=id=>document.getElementById(id);
+    const els={cam1Select:$('cam1Select'),cam2Select:$('cam2Select'),refreshCamsBtn:$('refreshCamsBtn'),openDualBtn:$('openDualBtn'),closeDualBtn:$('closeDualBtn'),baselineInput:$('baselineInput'),depthGainInput:$('depthGainInput'),mDualState:$('mDualState'),mTracked:$('mTracked'),mDepth:$('mDepth'),mDualFps:$('mDualFps'),video1:$('video1'),video2:$('video2'),overlay1:$('overlay1'),overlay2:$('overlay2'),avatarInput:$('avatarInput'),loadBtn:$('loadBtn'),exampleBtn:$('exampleBtn'),frontViewBtn:$('frontViewBtn'),sideViewBtn:$('sideViewBtn'),topViewBtn:$('topViewBtn'),resetViewBtn:$('resetViewBtn'),pickModeBtn:$('pickModeBtn'),roleBadge:$('roleBadge'),boneBadge:$('boneBadge'),avatarView:$('avatarView'),avatarInfo:$('avatarInfo'),triangulationInfo:$('triangulationInfo'),summary:$('summary'),autoMapBtn:$('autoMapBtn'),clearMapBtn:$('clearMapBtn'),saveMapBtn:$('saveMapBtn'),mapInput:$('mapInput'),loadMapBtn:$('loadMapBtn'),mappingList:$('mappingList'),bonesBox:$('bonesBox'),status:$('status'),log:$('log')};
+    const ctx1=els.overlay1.getContext('2d'), ctx2=els.overlay2.getContext('2d');
+    const st={devices:[],stream1:null,stream2:null,pose1:null,pose2:null,last1:null,last2:null,lastTs:0,fps:0,dualRunning:false,renderer:null,scene:null,camera3d:null,orbit:{yaw:0,pitch:0.15,distance:4.2,target:new THREE.Vector3(0,1.0,0),drag:false,pan:false,lastX:0,lastY:0},example:null,loaded:null,names:[],map:{},pickMode:false,activeRole:null,ray:new THREE.Raycaster(),pointer:new THREE.Vector2(),highlight:null,highlightMesh:null,blobUrls:[],stickman3d:null,last3D:null};
+
+    function status(t){els.status.textContent=t}
+    function log(t){els.log.textContent+=t+'\n';els.log.scrollTop=els.log.scrollHeight}
+    function resizeCanvasToVideo(canvas, video){canvas.width=video.clientWidth||video.videoWidth||0;canvas.height=video.clientHeight||video.videoHeight||0}
+    function pt(p, canvas){return{x:p.x*canvas.width,y:p.y*canvas.height}}
+    function draw2D(ctx, canvas, lm){ctx.clearRect(0,0,canvas.width,canvas.height);if(!lm)return;ctx.strokeStyle='#67b0ff';ctx.fillStyle='#ffd166';ctx.lineWidth=3;for(const[a,b]of BONES){if(!lm[a]||!lm[b])continue;const A=pt(lm[a],canvas),B=pt(lm[b],canvas);ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke()}for(const i of [0,11,12,13,14,15,16,23,24,25,26,27,28]){if(!lm[i])continue;const P=pt(lm[i],canvas);ctx.beginPath();ctx.arc(P.x,P.y,i===0?7:4,0,Math.PI*2);ctx.fill()}}
+    function clamp(n,a,b){return Math.max(a,Math.min(b,n))}
+
+    async function listCameras(){const devices=await navigator.mediaDevices.enumerateDevices();st.devices=devices.filter(d=>d.kind==='videoinput');const opts=st.devices.map((d,i)=>`<option value="${d.deviceId}">${d.label||'Cámara '+(i+1)}</option>`).join('');els.cam1Select.innerHTML=opts;els.cam2Select.innerHTML=opts; if(st.devices[1]) els.cam2Select.value=st.devices[1].deviceId;}
+
+    async function ensurePoseEngines(){if(!st.pose1){st.pose1=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});st.pose1.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.5,minTrackingConfidence:.5});st.pose1.onResults(res=>{st.last1=res.poseLandmarks; resizeCanvasToVideo(els.overlay1,els.video1); draw2D(ctx1,els.overlay1,st.last1); maybeTriangulate();});}
+      if(!st.pose2){st.pose2=new Pose({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/pose/${f}`});st.pose2.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,minDetectionConfidence:.5,minTrackingConfidence:.5});st.pose2.onResults(res=>{st.last2=res.poseLandmarks; resizeCanvasToVideo(els.overlay2,els.video2); draw2D(ctx2,els.overlay2,st.last2); maybeTriangulate();});}}
+
+    async function openDualCam(){await ensurePoseEngines(); await navigator.mediaDevices.getUserMedia({video:true,audio:false}).then(s=>s.getTracks().forEach(t=>t.stop())); await listCameras(); const id1=els.cam1Select.value, id2=els.cam2Select.value; if(!id1||!id2) throw new Error('Selecciona dos cámaras.'); st.stream1=await navigator.mediaDevices.getUserMedia({audio:false,video:{deviceId:{exact:id1},width:{ideal:1280},height:{ideal:720}}}); st.stream2=await navigator.mediaDevices.getUserMedia({audio:false,video:{deviceId:{exact:id2},width:{ideal:1280},height:{ideal:720}}}); els.video1.srcObject=st.stream1; els.video2.srcObject=st.stream2; await els.video1.play(); await els.video2.play(); els.video1.style.display='block'; els.video2.style.display='block'; st.dualRunning=true; els.mDualState.textContent='activo'; status('Dual-cam activa'); dualLoop();}
+    function closeDualCam(){st.dualRunning=false; if(st.stream1){st.stream1.getTracks().forEach(t=>t.stop());st.stream1=null} if(st.stream2){st.stream2.getTracks().forEach(t=>t.stop());st.stream2=null} els.video1.pause(); els.video2.pause(); els.video1.srcObject=null; els.video2.srcObject=null; els.video1.style.display='none'; els.video2.style.display='none'; ctx1.clearRect(0,0,els.overlay1.width,els.overlay1.height); ctx2.clearRect(0,0,els.overlay2.width,els.overlay2.height); els.mDualState.textContent='inactivo'; status('Dual-cam cerrada');}
+    async function dualLoop(){if(!st.dualRunning) return; try{ if(els.video1.readyState>=2) await st.pose1.send({image:els.video1}); if(els.video2.readyState>=2) await st.pose2.send({image:els.video2}); }catch(e){log(e.message)} requestAnimationFrame(dualLoop);}
+
+    function triangulateBasic(p1,p2){if(!p1||!p2) return null; const baseline=Number(els.baselineInput.value||0.6); const gain=Number(els.depthGainInput.value||1.2); const disparity=(p1.x-p2.x); const z=clamp((baseline/(Math.abs(disparity)+0.02))*gain,0.3,5.5); const x=((p1.x+p2.x)/2 - 0.5)*2.2; const y=-(1-((p1.y+p2.y)/2))*2.4 + 1.2; const depthSign=disparity>=0?-1:1; return new THREE.Vector3(x,y,depthSign*z*0.35); }
+    function maybeTriangulate(){if(!st.last1||!st.last2) return; const points={}; let count=0, depthSum=0; for(const idx of [0,11,12,13,14,15,16,23,24,25,26,27,28]){const p=triangulateBasic(st.last1[idx], st.last2[idx]); if(!p) continue; points[idx]=p; count++; depthSum += Math.abs(p.z);} if(count<6) return; st.last3D=points; const now=performance.now(); if(st.lastTs) st.fps=Math.round(1000/(now-st.lastTs)); st.lastTs=now; els.mTracked.textContent=String(count); els.mDepth.textContent=(depthSum/count).toFixed(2); els.mDualFps.textContent=st.fps?String(st.fps):'—'; els.triangulationInfo.innerHTML=`<div><b>Triangulación:</b> ${count} landmarks</div><div class='small'>Usa disparidad horizontal simple. Mejor con cámaras separadas horizontalmente y sujeto centrado.</div>`; els.summary.innerHTML=`<div><b>Stickman 3D:</b> activo</div><div class='small'>Profundidad media: ${(depthSum/count).toFixed(2)}</div>`; update3DStickman(points); if(st.loaded) updateLoadedFrom3D(points); else updateExampleFrom3D(points); }
+
+    function makeStickman3D(){const g=new THREE.Group(); const mat=new THREE.LineBasicMaterial({color:0x67b0ff}); const pts=[]; for(let i=0;i<BONES.length;i++){pts.push(new THREE.Vector3(), new THREE.Vector3());} const geo=new THREE.BufferGeometry().setFromPoints(pts); const line=new THREE.LineSegments(geo,mat); g.add(line); const joints=[]; for(let i=0;i<13;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(0.03,12,12), new THREE.MeshBasicMaterial({color:0xffd166})); g.add(m); joints.push(m);} g.userData={line, joints}; st.scene.add(g); st.stickman3d=g; }
+    function update3DStickman(points){ if(!st.stickman3d) makeStickman3D(); const geo=st.stickman3d.userData.line.geometry; const arr=geo.attributes.position.array; let pi=0; for(const[a,b]of BONES){const A=points[a]||new THREE.Vector3(), B=points[b]||new THREE.Vector3(); arr[pi++]=A.x; arr[pi++]=A.y; arr[pi++]=A.z; arr[pi++]=B.x; arr[pi++]=B.y; arr[pi++]=B.z;} geo.attributes.position.needsUpdate=true; const ids=[0,11,12,13,14,15,16,23,24,25,26,27,28]; ids.forEach((id,i)=>{if(points[id]) st.stickman3d.userData.joints[i].position.copy(points[id]);}); }
+
+    function updateCameraFromOrbit(){const o=st.orbit;const cp=Math.cos(o.pitch),sp=Math.sin(o.pitch),cy=Math.cos(o.yaw),sy=Math.sin(o.yaw);const pos=new THREE.Vector3(o.distance*cp*sy,o.distance*sp,o.distance*cp*cy).add(o.target);st.camera3d.position.copy(pos);st.camera3d.lookAt(o.target)}
+    function resetView(){st.orbit.yaw=0;st.orbit.pitch=0.15;st.orbit.distance=4.2;st.orbit.target.set(0,1.0,0);updateCameraFromOrbit()} function frontView(){st.orbit.yaw=0;st.orbit.pitch=0.1;updateCameraFromOrbit()} function sideView(){st.orbit.yaw=Math.PI/2;st.orbit.pitch=0.1;updateCameraFromOrbit()} function topView(){st.orbit.yaw=0;st.orbit.pitch=Math.PI/2-0.05;st.orbit.distance=5;updateCameraFromOrbit()}
+    function init3D(){st.renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});st.renderer.setSize(els.avatarView.clientWidth,els.avatarView.clientHeight);els.avatarView.appendChild(st.renderer.domElement);st.scene=new THREE.Scene();st.scene.background=new THREE.Color(0x0b1425);st.camera3d=new THREE.PerspectiveCamera(45,els.avatarView.clientWidth/els.avatarView.clientHeight,.01,100);st.scene.add(new THREE.HemisphereLight(0xffffff,0x223344,1.2));const d=new THREE.DirectionalLight(0xffffff,1);d.position.set(3,5,4);st.scene.add(d);st.scene.add(new THREE.GridHelper(6,12,0x445577,0x223344));bindViewerControls();makeExample();makeStickman3D();resetView();window.addEventListener('resize',()=>{st.renderer.setSize(els.avatarView.clientWidth,els.avatarView.clientHeight);st.camera3d.aspect=els.avatarView.clientWidth/els.avatarView.clientHeight;st.camera3d.updateProjectionMatrix()});(function anim(){requestAnimationFrame(anim);st.renderer.render(st.scene,st.camera3d)})()}
+    function bindViewerControls(){const dom=st.renderer.domElement;dom.addEventListener('pointerdown',e=>{if(st.pickMode&&st.activeRole){pickOnModel(e);return}st.orbit.drag=true;st.orbit.pan=e.shiftKey;st.orbit.lastX=e.clientX;st.orbit.lastY=e.clientY;dom.style.cursor='grabbing'});window.addEventListener('pointermove',e=>{if(!st.orbit.drag)return;const dx=e.clientX-st.orbit.lastX,dy=e.clientY-st.orbit.lastY;st.orbit.lastX=e.clientX;st.orbit.lastY=e.clientY;if(st.orbit.pan){const scale=0.003*st.orbit.distance;st.orbit.target.x-=dx*scale;st.orbit.target.y+=dy*scale}else{st.orbit.yaw-=dx*0.01;st.orbit.pitch=clamp(st.orbit.pitch-dy*0.01,-1.45,1.45)}updateCameraFromOrbit()});window.addEventListener('pointerup',()=>{st.orbit.drag=false;dom.style.cursor='grab'});dom.addEventListener('wheel',e=>{e.preventDefault();st.orbit.distance=clamp(st.orbit.distance*(1+Math.sign(e.deltaY)*0.08),1.2,12);updateCameraFromOrbit()},{passive:false});dom.addEventListener('dblclick',()=>{st.orbit.target.set(0,1.0,0);updateCameraFromOrbit()})}
+
+    function box(w,h,d,color){return new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshStandardMaterial({color}))}
+    function sphere(r,color){return new THREE.Mesh(new THREE.SphereGeometry(r,20,20),new THREE.MeshStandardMaterial({color}))}
+    function makeExample(){if(st.example)st.scene.remove(st.example.root);const root=new THREE.Group();root.position.set(0,-.65,0);const p={Pelvis:box(.34,.18,.24,0x5f97e6),Chest:box(.42,.7,.24,0x6aa7ff),Neck:box(.12,.1,.12,0xf0c780),Head:sphere(.18,0xf2cf8d),LeftUpperArm:box(.11,.34,.11,0x89d8ff),LeftLowerArm:box(.095,.3,.095,0x89d8ff),LeftHand:box(.12,.06,.1,0xf2cf8d),RightUpperArm:box(.11,.34,.11,0x89d8ff),RightLowerArm:box(.095,.3,.095,0x89d8ff),RightHand:box(.12,.06,.1,0xf2cf8d),LeftUpperLeg:box(.16,.42,.16,0x6aa7ff),LeftLowerLeg:box(.13,.4,.13,0x6aa7ff),LeftFoot:box(.14,.06,.28,0x2b3954),RightUpperLeg:box(.16,.42,.16,0x6aa7ff),RightLowerLeg:box(.13,.4,.13,0x6aa7ff),RightFoot:box(.14,.06,.28,0x2b3954)};Object.entries(p).forEach(([n,m])=>{m.name=n;root.add(m)});st.example={root,parts:p};st.scene.add(root);st.names=Object.keys(p);st.map={hips:'Pelvis',spine:'Chest',neck:'Neck',head:'Head',leftUpperArm:'LeftUpperArm',leftLowerArm:'LeftLowerArm',leftHand:'LeftHand',rightUpperArm:'RightUpperArm',rightLowerArm:'RightLowerArm',rightHand:'RightHand',leftUpperLeg:'LeftUpperLeg',leftLowerLeg:'LeftLowerLeg',leftFoot:'LeftFoot',rightUpperLeg:'RightUpperLeg',rightLowerLeg:'RightLowerLeg',rightFoot:'RightFoot'};els.avatarInfo.textContent='Avatar humanoide ejemplo activo.';renderMapping();renderNames()}
+    function orient(obj,a,b){const dir=new THREE.Vector3().subVectors(b,a);if(!dir.length())return;obj.position.copy(a).add(b).multiplyScalar(.5);obj.scale.y=Math.max(.001,dir.length());obj.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize())}
+    function updateExampleFrom3D(points){if(!st.example||!points)return; const p=st.example.parts; const ls=points[11],rs=points[12],le=points[13],re=points[14],lw=points[15],rw=points[16],lh=points[23],rh=points[24],lk=points[25],rk=points[26],la=points[27],ra=points[28],nose=points[0]; if(!(ls&&rs&&lh&&rh)) return; const hip=lh.clone().add(rh).multiplyScalar(.5),sh=ls.clone().add(rs).multiplyScalar(.5); p.Pelvis.position.copy(hip); p.Chest.position.copy(hip.clone().lerp(sh,.55)); if(nose) p.Neck.position.copy(sh.clone().lerp(nose,.45)); if(nose) p.Head.position.copy(nose.clone().add(new THREE.Vector3(0,.08,0))); if(ls&&le) orient(p.LeftUpperArm,ls,le); if(le&&lw) orient(p.LeftLowerArm,le,lw); if(lw) p.LeftHand.position.copy(lw); if(rs&&re) orient(p.RightUpperArm,rs,re); if(re&&rw) orient(p.RightLowerArm,re,rw); if(rw) p.RightHand.position.copy(rw); if(lh&&lk) orient(p.LeftUpperLeg,lh,lk); if(lk&&la) orient(p.LeftLowerLeg,lk,la); if(la) p.LeftFoot.position.copy(la.clone().add(new THREE.Vector3(0,-.02,.08))); if(rh&&rk) orient(p.RightUpperLeg,rh,rk); if(rk&&ra) orient(p.RightLowerLeg,rk,ra); if(ra) p.RightFoot.position.copy(ra.clone().add(new THREE.Vector3(0,-.02,.08))); }
+    function currentRoot(){return st.loaded?.scene||st.example?.root}
+    function getTarget(role){const name=st.map[role];const root=currentRoot();return name&&root?root.getObjectByName(name):null}
+    function updateLoadedFrom3D(points){if(!st.loaded||!points)return; const ls=points[11],rs=points[12],le=points[13],re=points[14],lw=points[15],rw=points[16],lh=points[23],rh=points[24],lk=points[25],rk=points[26],la=points[27],ra=points[28],nose=points[0]; if(!(ls&&rs&&lh&&rh)) return; const hip=lh.clone().add(rh).multiplyScalar(.5),sh=ls.clone().add(rs).multiplyScalar(.5); const q=(obj,a,b)=>{if(!obj||!a||!b)return;const dir=new THREE.Vector3().subVectors(b,a);if(!dir.length())return;obj.quaternion.slerp(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize()),.35)}; if(st.loaded.rootBone&&st.loaded.rootBone.position) st.loaded.rootBone.position.lerp(hip.clone().setY(hip.y-.1),.18); q(getTarget('spine'),hip,sh); if(nose) q(getTarget('neck'),sh,nose); if(nose) q(getTarget('head'),sh,nose.clone().add(new THREE.Vector3(0,.2,0))); q(getTarget('leftUpperArm'),ls,le); q(getTarget('leftLowerArm'),le,lw); q(getTarget('rightUpperArm'),rs,re); q(getTarget('rightLowerArm'),re,rw); q(getTarget('leftUpperLeg'),lh,lk); q(getTarget('leftLowerLeg'),lk,la); q(getTarget('rightUpperLeg'),rh,rk); q(getTarget('rightLowerLeg'),rk,ra); }
+
+    function getLoaderClass(){const Loader=window.GLTFLoader || window.THREE?.GLTFLoader; if(!Loader) throw new Error('GLTFLoader no disponible'); return Loader;}
+    function useLoadedScene(scene,label){if(st.loaded)st.scene.remove(st.loaded.scene); if(st.example){st.scene.remove(st.example.root);st.example=null} scene.position.set(0,-.6,0); scene.scale.setScalar(1.15); st.scene.add(scene); const names=[]; let rootBone=null; scene.traverse(o=>{if((o.isBone||o.isMesh)&&o.name)names.push(o.name);if(!rootBone&&o.isBone&&/(hip|pelvis)/i.test(o.name))rootBone=o}); st.loaded={scene,rootBone}; st.names=[...new Set(names)].sort((a,b)=>a.localeCompare(b)); autoMap(scene); els.avatarInfo.textContent=label+' cargado.';}
+    async function loadDirect(file){const url=URL.createObjectURL(file); st.blobUrls.push(url); const Loader=getLoaderClass(); const loader=new Loader(); const gltf=await new Promise((resolve,reject)=>loader.load(url,resolve,undefined,reject)); useLoadedScene(gltf.scene,file.name); status('Modelo cargado');}
+    async function loadZip(file){const zip=await JSZip.loadAsync(file); const entries=Object.keys(zip.files).filter(k=>!zip.files[k].dir); const model=entries.find(e=>/\.glb$/i.test(e))||entries.find(e=>/\.gltf$/i.test(e)); if(!model) throw new Error('El ZIP no contiene .glb ni .gltf'); const transparent=await (async()=>{const c=document.createElement('canvas'); c.width=1;c.height=1; return await new Promise(resolve=>c.toBlob(b=>{const u=URL.createObjectURL(b); st.blobUrls.push(u); resolve(u);},'image/png'));})(); const cache={}; const findResource=(url)=>{const clean=url.split('?')[0].split('#')[0].replace(/^\.\//,''); const lower=clean.toLowerCase(); let match=entries.find(e=>e.toLowerCase()===lower)||entries.find(e=>e.toLowerCase().endsWith('/'+lower)); if(!match){const base=lower.split('/').pop(); match=entries.find(e=>/(^|\/)tex\//i.test(e)&&e.toLowerCase().endsWith('/'+base))||entries.find(e=>e.toLowerCase().endsWith('/'+base));} return match;}; const manager=new THREE.LoadingManager(); manager.setURLModifier((url)=>{const match=findResource(url); if(!match){ if(/\.(png|jpg|jpeg|webp)$/i.test(url.toLowerCase())) return transparent; return url;} if(cache[match]) return cache[match]; cache[match]=transparent; zip.file(match).async('blob').then(b=>{const u=URL.createObjectURL(b); st.blobUrls.push(u); cache[match]=u;}); return cache[match];}); const modelBlob=await zip.file(model).async('blob'); const modelUrl=URL.createObjectURL(modelBlob); st.blobUrls.push(modelUrl); const Loader=getLoaderClass(); const loader=new Loader(manager); const gltf=await new Promise((resolve,reject)=>loader.load(modelUrl,resolve,undefined,reject)); useLoadedScene(gltf.scene,file.name+' (ZIP)'); status('ZIP cargado');}
+    async function loadAvatar(file){const ext=(file.name.split('.').pop()||'').toLowerCase(); if(ext==='zip') return loadZip(file); if(ext==='glb'||ext==='gltf') return loadDirect(file); throw new Error('Formato no soportado');}
+
+    function updatePick(){els.pickModeBtn.textContent='Modo selección: '+(st.pickMode?'ON':'OFF');els.roleBadge.textContent='Rol: '+(st.activeRole||'ninguno');els.boneBadge.textContent='Hueso: '+(st.highlight?.name||'ninguno');document.querySelectorAll('[data-role-card]').forEach(el=>el.classList.toggle('activeRole',el.dataset.roleCard===st.activeRole));document.querySelectorAll('.chip').forEach(el=>el.classList.toggle('active',el.dataset.name===st.highlight?.name))}
+    function setHighlight(obj){st.highlight=obj||null;if(st.highlightMesh){st.scene.remove(st.highlightMesh);st.highlightMesh=null}if(obj&&obj.getWorldPosition){const s=new THREE.Mesh(new THREE.SphereGeometry(.06,12,12),new THREE.MeshBasicMaterial({color:0x22c55e}));obj.getWorldPosition(s.position);st.highlightMesh=s;st.scene.add(s)}updatePick()}
+    function findNearestBoneOrObject(obj){let cur=obj;while(cur){if(cur.isBone)return cur;cur=cur.parent}return obj}
+    function pickOnModel(e){if(!st.pickMode||!st.activeRole)return;const root=currentRoot();if(!root)return;const rect=st.renderer.domElement.getBoundingClientRect();st.pointer.x=((e.clientX-rect.left)/rect.width)*2-1;st.pointer.y=-((e.clientY-rect.top)/rect.height)*2+1;st.ray.setFromCamera(st.pointer,st.camera3d);const hits=st.ray.intersectObjects([root],true);if(!hits.length){status('No se ha podido seleccionar');return}const target=findNearestBoneOrObject(hits[0].object);st.map[st.activeRole]=target.name;setHighlight(target);renderMapping();status(`${st.activeRole} → ${target.name}`)}
+    function renderMapping(){els.mappingList.innerHTML=ROLES.map(([k,label])=>`<div class='item ${st.activeRole===k?'activeRole':''}' data-role-card='${k}'><div class='mapping'><div><b>${label}</b><div class='small'>${k}</div></div><div><select data-role='${k}'><option value=''>— sin asignar —</option>${st.names.map(n=>`<option value="${n}" ${st.map[k]===n?'selected':''}>${n}</option>`).join('')}</select></div><div class='row'><button data-pick='${k}' class='vio'>Seleccionar</button><button data-clear='${k}' class='ghost'>Limpiar</button></div></div></div>`).join('');document.querySelectorAll('[data-role]').forEach(s=>s.onchange=()=>{st.map[s.dataset.role]=s.value;renderNames();updatePick()});document.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{st.activeRole=b.dataset.pick;st.pickMode=true;updatePick();status('Haz click en el modelo para asignar '+st.activeRole)});document.querySelectorAll('[data-clear]').forEach(b=>b.onclick=()=>{st.map[b.dataset.clear]='';renderMapping();renderNames()});updatePick()}
+    function renderNames(){const mapped=Object.values(st.map).filter(Boolean).length;els.bonesBox.innerHTML=st.names.length?`<div><b>Nombres detectados: ${st.names.length}</b><div class='small'>Roles asignados: ${mapped}/${ROLES.length}</div><div style='margin-top:8px'>${st.names.map(n=>`<span class='chip ${st.highlight?.name===n?'active':''}' data-name='${n}'>${n}</span>`).join('')}</div></div>`:'Sin avatar cargado.';updatePick()}
+    function saveMap(){const blob=new Blob([JSON.stringify({format:'mapping-v11-dualcam-basic',mapping:st.map},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mapping.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+    function loadMap(obj){if(!obj||!obj.mapping)throw new Error('mapping.json inválido');st.map={...st.map,...obj.mapping};renderMapping();renderNames()}
+    function autoMap(scene){const find=(...needles)=>{let f='';scene.traverse(o=>{const n=(o.name||'').toLowerCase();if(f)return;if(needles.every(k=>n.includes(k)))f=o.name});return f};st.map={hips:find('hip')||find('pelvis')||st.map.hips||'',spine:find('chest')||find('spine')||st.map.spine||'',neck:find('neck')||st.map.neck||'',head:find('head')||st.map.head||'',leftUpperArm:find('left','upperarm')||find('left','arm')||st.map.leftUpperArm||'',leftLowerArm:find('left','lowerarm')||find('left','forearm')||st.map.leftLowerArm||'',leftHand:find('left','hand')||st.map.leftHand||'',rightUpperArm:find('right','upperarm')||find('right','arm')||st.map.rightUpperArm||'',rightLowerArm:find('right','lowerarm')||find('right','forearm')||st.map.rightLowerArm||'',rightHand:find('right','hand')||st.map.rightHand||'',leftUpperLeg:find('left','upperleg')||find('left','thigh')||st.map.leftUpperLeg||'',leftLowerLeg:find('left','lowerleg')||find('left','calf')||st.map.leftLowerLeg||'',leftFoot:find('left','foot')||st.map.leftFoot||'',rightUpperLeg:find('right','upperleg')||find('right','thigh')||st.map.rightUpperLeg||'',rightLowerLeg:find('right','lowerleg')||find('right','calf')||st.map.rightLowerLeg||'',rightFoot:find('right','foot')||st.map.rightFoot||''};renderMapping();renderNames()}
+
+    els.refreshCamsBtn.onclick=()=>listCameras().catch(e=>log(e.message));
+    els.openDualBtn.onclick=()=>openDualCam().catch(e=>{status(e.message);log(e.message)});
+    els.closeDualBtn.onclick=closeDualCam;
+    els.loadBtn.onclick=()=>{const f=els.avatarInput.files[0]; if(!f){status('Selecciona un archivo'); return;} loadAvatar(f).catch(e=>{status(e.message);log(e.message);});};
+    els.exampleBtn.onclick=()=>{if(st.loaded){st.scene.remove(st.loaded.scene);st.loaded=null} makeExample(); status('Avatar ejemplo activo');};
+    els.frontViewBtn.onclick=frontView; els.sideViewBtn.onclick=sideView; els.topViewBtn.onclick=topView; els.resetViewBtn.onclick=resetView;
+    els.pickModeBtn.onclick=()=>{st.pickMode=!st.pickMode;updatePick()};
+    els.autoMapBtn.onclick=()=>{if(st.loaded) autoMap(st.loaded.scene); else renderMapping(); status('Auto-mapeo aplicado');};
+    els.clearMapBtn.onclick=()=>{ROLES.forEach(([k])=>st.map[k]='');renderMapping();renderNames();status('Mapeo limpiado')};
+    els.saveMapBtn.onclick=saveMap;
+    els.loadMapBtn.onclick=async()=>{try{const f=els.mapInput.files[0]; if(!f) throw new Error('Selecciona mapping.json'); loadMap(JSON.parse(await f.text())); status('Mapping cargado');}catch(e){status(e.message);}};
+
+    init3D(); renderMapping(); renderNames(); updatePick(); listCameras().catch(()=>{}); status('Aplicación lista. Coloca dos webcams separadas horizontalmente para mejor resultado.');
+  </script>
+</body>
+</html>
