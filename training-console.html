@@ -1,0 +1,18 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Training Console</title><style>body{font-family:Arial;background:#0b1220;color:#fff;margin:0;padding:20px;max-width:900px;margin:auto}input,button{padding:10px;margin:6px 0;width:100%;border-radius:8px;border:1px solid #333}button{background:#2563eb;color:#fff;font-weight:bold}pre{background:#111827;padding:10px;border-radius:8px;overflow:auto}</style></head><body><h1>🚀 Training Console</h1><p>Lanza entrenamiento real en tu backend.</p><input id="api" placeholder="http://localhost:8000">
+<input id="project" placeholder="project_slug">
+<input id="repo" placeholder="oscavi/hello-world">
+<button onclick="start()">Iniciar entrenamiento</button>
+<button onclick="loadJobs()">Ver jobs</button>
+<pre id="out"></pre>
+<script>
+async function start(){
+ const api=document.getElementById('api').value
+ const res=await fetch(api+'/train/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({project_slug:document.getElementById('project').value,public_repo:document.getElementById('repo').value})})
+ document.getElementById('out').textContent=await res.text()
+}
+async function loadJobs(){
+ const api=document.getElementById('api').value
+ const res=await fetch(api+'/train/jobs')
+ document.getElementById('out').textContent=JSON.stringify(await res.json(),null,2)
+}
+</script></body></html>
