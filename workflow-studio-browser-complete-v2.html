@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Workflow Studio Browser Complete v2</title>
+  <style>
+    body{margin:0;background:#0b1220;color:#fff;font-family:Arial,sans-serif;max-width:1520px;padding:16px;margin:auto}
+    section{background:#111827;border:1px solid #334155;border-radius:16px;padding:16px;margin:12px 0}
+    h1,h2,h3{margin:0 0 10px}.small{color:#cbd5e1;font-size:14px;line-height:1.45}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    input,button,select,textarea{padding:10px 12px;border-radius:10px;border:1px solid #334155;background:#0f172a;color:#fff}
+    input,select,textarea{width:100%}button{cursor:pointer}.pri{background:#2563eb;border:none}.vio{background:#7c3aed;border:none}.ghost{background:transparent}.danger{background:#dc2626;border:none}.okbtn{background:#059669;border:none}
+    .item,.metric{padding:12px;border:1px solid #334155;border-radius:12px;background:#0f172a}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+    .chip{display:inline-block;padding:4px 8px;border:1px solid #334155;border-radius:999px;margin:4px 6px 0 0;color:#cbd5e1}.good{color:#86efac}.warn{color:#fbbf24}.err{color:#fca5a5}
+    #log{white-space:pre-wrap;background:#020617;padding:10px;border-radius:12px;min-height:220px;max-height:360px;overflow:auto}
+    #preview,#testPreview,#builderPreview{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+    #preview img,#testPreview img,#builderPreview img{width:100%;height:100px;object-fit:cover;border-radius:10px;border:1px solid #334155}
+    .captureBox{position:relative;min-height:280px;border:1px solid #334155;border-radius:12px;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    #builderVideo{max-width:100%;max-height:60vh;display:none}#builderCanvas{position:absolute;inset:0;pointer-events:none}
+    progress{width:100%;height:18px}.phase{display:flex;gap:10px;flex-wrap:wrap}.phase .chip{background:#0b1220}
+    .result-card{padding:12px;border:1px solid #334155;border-radius:12px;background:#0b1325}.subgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mono{font-family:ui-monospace,monospace}
+    @media(max-width:1000px){.grid,.metrics,.subgrid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <section>
+    <h1>Workflow Studio Browser Complete v2</h1>
+    <p class="small">Aplicación completa en un solo HTML: builder de datasets, análisis inteligente, selección de backend GPU/CPU, entrenamiento local, exportación del modelo e inferencia de prueba. Incluye un selector de salida para elegir entre <b>modo dual</b> o <b>solo clases nuevas</b>.</p>
+    <div class="phase" style="margin-top:10px">
+      <span class="chip">1. Crear dataset</span>
+      <span class="chip">2. Exportar dataset ZIP</span>
+      <span class="chip">3. Cargar / analizar</span>
+      <span class="chip">4. Elegir backend y modelo</span>
+      <span class="chip">5. Entrenar</span>
+      <span class="chip">6. Exportar modelo</span>
+      <span class="chip">7. Probar inferencia</span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section>
+      <h2>1. Builder de datasets</h2>
+      <div class="row">
+        <input id="builderCategory" placeholder="Nombre de categoría, por ejemplo gato">
+        <button id="addCategoryBtn" class="pri">Añadir categoría</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <select id="builderCategorySelect"></select>
+        <select id="builderSplitSelect">
+          <option value="train" selected>train</option>
+          <option value="validation">validation</option>
+          <option value="test">test</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input id="builderImageInput" type="file" accept="image/*" multiple>
+        <button id="addImagesBtn" class="vio">Añadir imágenes</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="openCameraBtn" class="pri">Abrir cámara</button>
+        <button id="captureBtn" class="okbtn">Capturar foto</button>
+        <button id="closeCameraBtn" class="ghost">Cerrar cámara</button>
+      </div>
+      <div class="captureBox" style="margin-top:12px">
+        <video id="builderVideo" autoplay playsinline muted></video>
+        <canvas id="builderCanvas"></canvas>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="exportDatasetBtn" class="okbtn">Exportar dataset ZIP</button>
+        <button id="loadBuilderIntoTrainerBtn" class="vio">Usar este dataset en el trainer</button>
+      </div>
+      <div id="builderStats" class="item" style="margin-top:12px">Todavía no hay categorías.</div>
+      <div id="builderPreview" style="margin-top:12px"></div>
+    </section>
+
+    <section>
+      <h2>2. Dataset para entrenamiento</h2>
+      <div class="row">
+        <input id="zipInput" type="file" accept=".zip,application/zip">
+        <button id="loadZipBtn" class="pri">Cargar ZIP</button>
+      </div>
+      <p class="small" style="margin-top:8px">Admite <code>clase_x/imagenes</code>, <code>train/clase_x/...</code>, <code>validation/clase_x/...</code> o <code>val/clase_x/...</code>.</p>
+      <div class="metrics" style="margin-top:12px">
+        <div class="metric"><div id="mClasses">0</div><div class="small">Clases</div></div>
+        <div class="metric"><div id="mTrain">0</div><div class="small">Train</div></div>
+        <div class="metric"><div id="mVal">0</div><div class="small">Validation</div></div>
+        <div class="metric"><div id="mImages">0</div><div class="small">Imágenes</div></div>
+      </div>
+      <div id="classList" class="item" style="margin-top:12px">Sin dataset cargado.</div>
+      <div id="preview" style="margin-top:12px"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="analyzeBtn" class="vio">Analizar dataset</button>
+      </div>
+      <div id="analysisBox" class="item" style="margin-top:12px">Todavía no se ha analizado el dataset.</div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>3. Hardware y backend</h2>
+      <div class="metrics">
+        <div class="metric"><div id="mDevice">—</div><div class="small">Dispositivo</div></div>
+        <div class="metric"><div id="mMemory">—</div><div class="small">RAM aprox.</div></div>
+        <div class="metric"><div id="mCores">—</div><div class="small">Núcleos</div></div>
+        <div class="metric"><div id="mBackend">—</div><div class="small">Backend activo</div></div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <select id="backendSelect">
+          <option value="auto" selected>Auto (WebGPU → WebGL → CPU)</option>
+          <option value="webgpu">Forzar WebGPU</option>
+          <option value="webgl">Forzar WebGL</option>
+          <option value="cpu">Forzar CPU</option>
+        </select>
+        <button id="applyBackendBtn" class="vio">Aplicar backend</button>
+      </div>
+      <div id="backendInfo" class="small" style="margin-top:8px">Todavía no se ha inicializado el backend.</div>
+    </section>
+
+    <section>
+      <h2>4. Modelo base y entrenamiento</h2>
+      <div class="row">
+        <select id="baseModelSelect">
+          <option value="mobilenet_v2_100_224">MobileNetV2 1.0 224</option>
+          <option value="mobilenet_v2_050_224">MobileNetV2 0.50 224</option>
+          <option value="mobilenet_v3_small_100_224">MobileNetV3 Small 224</option>
+        </select>
+        <button id="recommendBtn" class="pri">Recomendar según equipo</button>
+      </div>
+      <p id="recommendation" class="small" style="margin-top:8px">Todavía no hay recomendación.</p>
+      <div class="row" style="margin-top:12px">
+        <select id="epochsSelect">
+          <option value="5">5 epochs</option>
+          <option value="10" selected>10 epochs</option>
+          <option value="15">15 epochs</option>
+          <option value="20">20 epochs</option>
+        </select>
+        <select id="batchSelect">
+          <option value="8">batch 8</option>
+          <option value="16" selected>batch 16</option>
+          <option value="24">batch 24</option>
+          <option value="32">batch 32</option>
+        </select>
+        <select id="imageSizeSelect">
+          <option value="160">160</option>
+          <option value="192">192</option>
+          <option value="224" selected>224</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="trainBtn" class="pri">Entrenar</button>
+        <button id="stopBtn" class="danger">Detener</button>
+        <button id="exportBtn" class="okbtn">Exportar modelo</button>
+      </div>
+      <div class="item" style="margin-top:12px">
+        <div><b>Estado:</b> <span id="trainState">en espera</span></div>
+        <div><b>Epoch:</b> <span id="epochOut">—</span></div>
+        <div><b>Batch:</b> <span id="batchOut">—</span></div>
+        <div><b>Loss:</b> <span id="lossOut">—</span></div>
+        <div><b>Accuracy:</b> <span id="accOut">—</span></div>
+        <div><b>Val Accuracy:</b> <span id="valAccOut">—</span></div>
+        <progress id="trainProgress" value="0" max="100" style="margin-top:12px"></progress>
+      </div>
+    </section>
+  </div>
+
+  <div class="grid">
+    <section>
+      <h2>5. Prueba de inferencia</h2>
+      <div class="row">
+        <input id="testInput" type="file" accept="image/*" multiple>
+        <button id="runTestBtn" class="vio">Probar imágenes</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <select id="outputModeSelect">
+          <option value="dual" selected>Modo dual: originales + nuevas</option>
+          <option value="custom_only">Solo nuevas clases</option>
+        </select>
+      </div>
+      <p class="small" style="margin-top:8px">En modo dual, la app muestra tanto la predicción del modelo base como la de tus clases entrenadas. En modo solo nuevas, muestra únicamente tus categorías personalizadas.</p>
+      <div id="testResults" class="item" style="margin-top:12px">Todavía no se ha probado ninguna imagen.</div>
+      <div id="testPreview" style="margin-top:12px"></div>
+    </section>
+
+    <section>
+      <h2>6. Registro</h2>
+      <pre id="log"></pre>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.20.0/dist/tf-backend-webgpu.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+  <script>
+    const $ = id => document.getElementById(id);
+    const els = {
+      builderCategory:$('builderCategory'), addCategoryBtn:$('addCategoryBtn'), builderCategorySelect:$('builderCategorySelect'), builderSplitSelect:$('builderSplitSelect'), builderImageInput:$('builderImageInput'), addImagesBtn:$('addImagesBtn'), openCameraBtn:$('openCameraBtn'), captureBtn:$('captureBtn'), closeCameraBtn:$('closeCameraBtn'), builderVideo:$('builderVideo'), builderCanvas:$('builderCanvas'), exportDatasetBtn:$('exportDatasetBtn'), loadBuilderIntoTrainerBtn:$('loadBuilderIntoTrainerBtn'), builderStats:$('builderStats'), builderPreview:$('builderPreview'),
+      zipInput:$('zipInput'), loadZipBtn:$('loadZipBtn'), mClasses:$('mClasses'), mTrain:$('mTrain'), mVal:$('mVal'), mImages:$('mImages'), classList:$('classList'), preview:$('preview'), analyzeBtn:$('analyzeBtn'), analysisBox:$('analysisBox'),
+      mDevice:$('mDevice'), mMemory:$('mMemory'), mCores:$('mCores'), mBackend:$('mBackend'), backendSelect:$('backendSelect'), applyBackendBtn:$('applyBackendBtn'), backendInfo:$('backendInfo'),
+      baseModelSelect:$('baseModelSelect'), recommendBtn:$('recommendBtn'), recommendation:$('recommendation'), epochsSelect:$('epochsSelect'), batchSelect:$('batchSelect'), imageSizeSelect:$('imageSizeSelect'), trainBtn:$('trainBtn'), stopBtn:$('stopBtn'), exportBtn:$('exportBtn'), trainState:$('trainState'), epochOut:$('epochOut'), batchOut:$('batchOut'), lossOut:$('lossOut'), accOut:$('accOut'), valAccOut:$('valAccOut'), trainProgress:$('trainProgress'),
+      testInput:$('testInput'), runTestBtn:$('runTestBtn'), outputModeSelect:$('outputModeSelect'), testResults:$('testResults'), testPreview:$('testPreview'), log:$('log')
+    };
+
+    const state = {
+      train: [], val: [], classes: [], labels: [], baseModel: null, classifier: null,
+      stopRequested: false, currentEpoch: 0, backendRequested: 'auto', backendUsed: 'cpu',
+      builder: { categories: [], items: [], stream: null, captureCount: 0 }
+    };
+
+    function log(msg){ const time = new Date().toLocaleTimeString(); els.log.textContent += `[${time}] ${msg}\n`; els.log.scrollTop = els.log.scrollHeight; }
+    function setTrainState(msg){ els.trainState.textContent = msg; }
+    function uniqueName(prefix='img'){ return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,8)}.jpg`; }
+
+    function refreshBuilderCategorySelect(){
+      els.builderCategorySelect.innerHTML = state.builder.categories.length ? state.builder.categories.map(c => `<option value="${c}">${c}</option>`).join('') : '<option value="">Sin categorías</option>';
+    }
+    function refreshBuilderStats(){
+      if (!state.builder.categories.length) { els.builderStats.textContent = 'Todavía no hay categorías.'; els.builderPreview.innerHTML=''; return; }
+      const counts = {}; for (const c of state.builder.categories) counts[c] = { train:0, validation:0, test:0 };
+      state.builder.items.forEach(it => { if (counts[it.category]) counts[it.category][it.split]++; });
+      els.builderStats.innerHTML = Object.entries(counts).map(([cat,v]) => `<div><b>${cat}</b> · train ${v.train} · validation ${v.validation} · test ${v.test}</div>`).join('');
+      els.builderPreview.innerHTML = state.builder.items.slice(-12).reverse().map(it => `<div><img src="${it.url}"><div class="small">${it.category} · ${it.split}</div></div>`).join('');
+    }
+    function addBuilderCategory(){
+      const name = (els.builderCategory.value || '').trim(); if (!name) return; if (!state.builder.categories.includes(name)) state.builder.categories.push(name); els.builderCategory.value = ''; refreshBuilderCategorySelect(); refreshBuilderStats(); log(`Categoría añadida al builder: ${name}`);
+    }
+    async function addBuilderImages(files){
+      const category = els.builderCategorySelect.value; const split = els.builderSplitSelect.value; if (!category) throw new Error('Crea y selecciona una categoría primero.'); const list = Array.from(files || []); if (!list.length) throw new Error('Selecciona al menos una imagen.');
+      for (const file of list){ const url = URL.createObjectURL(file); state.builder.items.push({ category, split, url, blob: file, filename: uniqueName(category) }); }
+      refreshBuilderStats(); log(`Añadidas ${list.length} imágenes a ${category}/${split}.`);
+    }
+    async function openBuilderCamera(){
+      if (state.builder.stream) return; state.builder.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }); els.builderVideo.srcObject = state.builder.stream; await els.builderVideo.play(); els.builderVideo.style.display = 'block'; log('Cámara del builder abierta.');
+    }
+    function closeBuilderCamera(){
+      if (state.builder.stream){ state.builder.stream.getTracks().forEach(t => t.stop()); state.builder.stream = null; } els.builderVideo.pause(); els.builderVideo.srcObject = null; els.builderVideo.style.display = 'none'; log('Cámara del builder cerrada.');
+    }
+    async function captureBuilderPhoto(){
+      const category = els.builderCategorySelect.value; const split = els.builderSplitSelect.value; if (!category) throw new Error('Selecciona una categoría.'); if (!state.builder.stream) throw new Error('Abre la cámara primero.');
+      const canvas = document.createElement('canvas'); canvas.width = els.builderVideo.videoWidth || 1280; canvas.height = els.builderVideo.videoHeight || 720; const ctx = canvas.getContext('2d'); ctx.drawImage(els.builderVideo, 0, 0, canvas.width, canvas.height); const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.92)); const url = URL.createObjectURL(blob); state.builder.captureCount += 1; state.builder.items.push({ category, split, url, blob, filename: uniqueName(category) }); refreshBuilderStats(); log(`Captura añadida a ${category}/${split}.`);
+    }
+    async function exportBuilderDataset(){
+      if (!state.builder.items.length) throw new Error('El builder todavía no tiene imágenes.'); const zip = new JSZip(); for (const item of state.builder.items){ zip.file(`${item.split}/${item.category}/${item.filename}`, item.blob); } const blob = await zip.generateAsync({ type: 'blob' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'workflow-studio-dataset.zip'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); log('Dataset exportado en workflow-studio-dataset.zip');
+    }
+    async function loadBuilderIntoTrainer(){
+      if (!state.builder.items.length) throw new Error('El builder todavía no tiene imágenes.'); clearDataset(); const classSet = new Set(state.builder.items.map(i => i.category)); state.classes = Array.from(classSet).sort(); state.labels = state.classes.slice();
+      for (const item of state.builder.items){ const sample = { url: item.url, label: item.category, classIndex: state.classes.indexOf(item.category) }; if (item.split === 'train') state.train.push(sample); else if (item.split === 'validation') state.val.push(sample); }
+      if (!state.val.length && state.train.length > 1){ const moved = Math.max(1, Math.floor(state.train.length * 0.2)); state.val = state.train.splice(-moved, moved); }
+      setMetrics(); renderPreview(); log('Dataset del builder cargado en el trainer.');
+    }
+
+    function setMetrics(){
+      els.mClasses.textContent = state.classes.length; els.mTrain.textContent = state.train.length; els.mVal.textContent = state.val.length; els.mImages.textContent = state.train.length + state.val.length; els.classList.innerHTML = state.classes.length ? state.classes.map(c => `<span class="chip">${c}</span>`).join('') : 'Sin dataset cargado.';
+    }
+    async function chooseBackend(preferred='auto'){
+      state.backendRequested = preferred; const order = preferred === 'auto' ? ['webgpu','webgl','cpu'] : [preferred, ...(preferred!=='webgpu'?['webgpu']:[]), ...(preferred!=='webgl'?['webgl']:[]), ...(preferred!=='cpu'?['cpu']:[])]; let selected = null; const tried = [];
+      for (const backend of order){ try { const ok = await tf.setBackend(backend); await tf.ready(); tried.push(`${backend}: ${ok ? 'ok' : 'no'}`); if (ok) { selected = backend; break; } } catch (e) { tried.push(`${backend}: error`); } }
+      if (!selected){ await tf.setBackend('cpu'); await tf.ready(); selected = 'cpu'; }
+      state.backendUsed = tf.getBackend(); els.mBackend.textContent = state.backendUsed; const isGpu = state.backendUsed === 'webgl' || state.backendUsed === 'webgpu'; els.backendInfo.innerHTML = isGpu ? `<span class="good">GPU habilitada vía ${state.backendUsed}</span>.` : `<span class="warn">Backend ${state.backendUsed}</span>. Fallback sin GPU.`; log('Backends probados: ' + tried.join(' · ')); log('Backend activo: ' + state.backendUsed);
+    }
+    async function initDeviceInfo(){
+      const ua = navigator.userAgent || ''; const mobile = /iPhone|Android|Mobile|iPad/i.test(ua); const mem = navigator.deviceMemory || 0; const cores = navigator.hardwareConcurrency || 0; els.mDevice.textContent = mobile ? 'móvil' : 'pc'; els.mMemory.textContent = mem ? mem + ' GB' : '—'; els.mCores.textContent = cores || '—'; await chooseBackend('auto'); recommendModel();
+    }
+    function recommendModel(){
+      const ua = navigator.userAgent || ''; const mobile = /iPhone|Android|Mobile|iPad/i.test(ua); const mem = navigator.deviceMemory || 0; const cores = navigator.hardwareConcurrency || 0; const gpu = state.backendUsed === 'webgl' || state.backendUsed === 'webgpu'; let model = 'mobilenet_v2_050_224'; let msg = 'Equipo ligero: MobileNetV2 0.50 recomendado.'; if (!mobile && mem >= 8 && cores >= 8) { model = 'mobilenet_v2_100_224'; msg = 'Equipo medio/alto: MobileNetV2 1.0 recomendado.'; } if (!mobile && mem >= 16 && cores >= 12 && gpu) { model = 'mobilenet_v3_small_100_224'; msg = 'Equipo potente con aceleración gráfica: MobileNetV3 Small recomendado.'; } els.baseModelSelect.value = model; els.recommendation.textContent = msg;
+    }
+    function clearDataset(){ state.train = []; state.val = []; state.classes = []; state.labels = []; state.classifier = null; els.preview.innerHTML = ''; els.testPreview.innerHTML = ''; els.testResults.textContent = 'Todavía no se ha probado ninguna imagen.'; setMetrics(); }
+    async function loadZipDataset(file){
+      clearDataset(); const zip = await JSZip.loadAsync(file); const entries = Object.keys(zip.files).filter(k => !zip.files[k].dir); const images = entries.filter(e => /\.(jpg|jpeg|png|webp)$/i.test(e)); if (!images.length) throw new Error('El ZIP no contiene imágenes.'); const classSet = new Set(); const temp = [];
+      for (const path of images){ const parts = path.split('/').filter(Boolean); let split = 'train'; let cls = ''; if (parts[0] === 'train' || parts[0] === 'validation' || parts[0] === 'val') { split = parts[0] === 'train' ? 'train' : 'val'; cls = parts[1] || 'sin_clase'; } else { cls = parts[0] || 'sin_clase'; split = 'train'; } classSet.add(cls); temp.push({ path, split, cls }); }
+      state.classes = Array.from(classSet).sort(); state.labels = state.classes.slice();
+      for (const item of temp){ const blob = await zip.file(item.path).async('blob'); const url = URL.createObjectURL(blob); const sample = { url, label: item.cls, classIndex: state.classes.indexOf(item.cls) }; if (item.split === 'train') state.train.push(sample); else state.val.push(sample); }
+      if (!state.val.length && state.train.length > 1){ const moved = Math.max(1, Math.floor(state.train.length * 0.2)); state.val = state.train.splice(-moved, moved); }
+      setMetrics(); renderPreview(); log(`Dataset cargado: ${state.train.length} train, ${state.val.length} validation, ${state.classes.length} clases.`); if (state.classes.length < 2) log('Aviso: necesitas al menos 2 clases para entrenar un clasificador útil.');
+    }
+    function renderPreview(){ els.preview.innerHTML = state.train.slice(0, 12).map(s => `<div><img src="${s.url}"><div class="small">${s.label}</div></div>`).join(''); }
+    function analyzeDataset(){
+      if (!state.train.length && !state.val.length) { els.analysisBox.textContent = 'Carga un dataset primero.'; return; } const counts = Object.fromEntries(state.classes.map(c => [c, 0])); [...state.train, ...state.val].forEach(s => counts[s.label]++); const values = Object.values(counts); const min = Math.min(...values), max = Math.max(...values), total = values.reduce((a,b)=>a+b,0); const imbalance = max / Math.max(1, min); const notes=[]; if (state.classes.length < 2) notes.push('<span class="err">Necesitas al menos 2 clases.</span>'); if (total < 40) notes.push('<span class="warn">Dataset pequeño.</span>'); if (imbalance > 2) notes.push('<span class="warn">Desbalance entre clases.</span>'); if (state.val.length < state.classes.length) notes.push('<span class="warn">Validation muy pequeña.</span>'); if (!notes.length) notes.push('<span class="good">Dataset razonable para prototipo.</span>'); els.analysisBox.innerHTML = `<div><b>Total imágenes:</b> ${total}</div><div><b>Clases:</b> ${state.classes.length}</div><div><b>Mínimo por clase:</b> ${min}</div><div><b>Máximo por clase:</b> ${max}</div><div><b>Ratio desbalance:</b> ${imbalance.toFixed(2)}</div><div style="margin-top:10px">${notes.join('<br>')}</div>`; log('Análisis de dataset completado.');
+    }
+    async function loadBaseModel(){ const selected = els.baseModelSelect.value; const alpha = selected.includes('050') ? 0.50 : 1.0; const version = 2; log(`Cargando modelo base: ${selected}`); state.baseModel = await mobilenet.load({ version, alpha }); log(`Modelo base cargado con backend ${tf.getBackend()}.`); }
+    async function inferFeatureShape(){ const dummy = tf.zeros([1, 224, 224, 3]); const feat = state.baseModel.infer(dummy, true); const shape = feat.shape.slice(1); dummy.dispose(); feat.dispose(); return shape; }
+    async function prepareClassifier(){ if (!state.baseModel) await loadBaseModel(); const featureShape = await inferFeatureShape(); const head = tf.sequential(); head.add(tf.layers.inputLayer({ inputShape: featureShape })); head.add(tf.layers.dense({ units: Math.max(32, state.classes.length * 8), activation: 'relu' })); head.add(tf.layers.dropout({ rate: 0.2 })); head.add(tf.layers.dense({ units: state.classes.length, activation: 'softmax' })); head.compile({ optimizer: tf.train.adam(1e-3), loss: 'categoricalCrossentropy', metrics: ['accuracy'] }); state.classifier = { extract: (imgTensor) => state.baseModel.infer(imgTensor, true), head }; log('Clasificador preparado con pipeline infer() estable.'); }
+    function loadImage(url){ return new Promise((resolve, reject) => { const img = new Image(); img.crossOrigin='anonymous'; img.onload=()=>resolve(img); img.onerror=reject; img.src=url; }); }
+    function preprocessImage(img){ return tf.tidy(() => tf.image.resizeBilinear(tf.browser.fromPixels(img).toFloat().div(255), [224, 224]).expandDims(0)); }
+    async function makeFeatureDataset(samples, tag){ const features = []; const labels = []; for (let i = 0; i < samples.length; i++) { const img = await loadImage(samples[i].url); const feat = tf.tidy(() => { const input = preprocessImage(img); const out = state.classifier.extract(input); return out.squeeze(); }); features.push(feat); labels.push(samples[i].classIndex); if ((i + 1) % 4 === 0){ setTrainState(`extrayendo features ${tag} ${i + 1}/${samples.length}`); log(`Features ${tag}: ${i + 1}/${samples.length}`); await tf.nextFrame(); } } const xTensor = tf.stack(features); const yTensor = tf.oneHot(tf.tensor1d(labels, 'int32'), state.classes.length); features.forEach(t => t.dispose()); return { xTensor, yTensor }; }
+    async function trainLocal(){
+      if (state.classes.length < 2) throw new Error('Necesitas al menos 2 clases para entrenar.'); if (!state.train.length) throw new Error('Carga un dataset primero.'); state.stopRequested = false; await prepareClassifier(); setTrainState('extrayendo features train'); log('Extrayendo features de train...'); const trainDs = await makeFeatureDataset(state.train, 'train'); setTrainState('extrayendo features validation'); log('Extrayendo features de validation...'); const valDs = await makeFeatureDataset(state.val, 'validation'); const epochs = Number(els.epochsSelect.value); const batchSize = Number(els.batchSelect.value); els.trainProgress.value = 0; setTrainState('entrenando'); log(`Entrenamiento iniciado en backend ${tf.getBackend()}.`);
+      await state.classifier.head.fit(trainDs.xTensor, trainDs.yTensor, { validationData: [valDs.xTensor, valDs.yTensor], epochs, batchSize, callbacks: { onEpochBegin: async (epoch) => { state.currentEpoch = epoch + 1; els.epochOut.textContent = `${epoch + 1}/${epochs}`; els.batchOut.textContent = '0'; setTrainState(`epoch ${epoch + 1}/${epochs}`); log(`Comienza epoch ${epoch + 1}/${epochs}`); await tf.nextFrame(); }, onBatchEnd: async (batch, logs) => { els.batchOut.textContent = String(batch + 1); if (logs?.loss != null) els.lossOut.textContent = logs.loss.toFixed(4); if (logs?.acc != null || logs?.accuracy != null) els.accOut.textContent = (logs.accuracy ?? logs.acc).toFixed(4); if ((batch + 1) % 2 === 0){ log(`Epoch ${state.currentEpoch} · batch ${batch + 1} · loss=${(logs.loss ?? 0).toFixed(4)}`); await tf.nextFrame(); } }, onEpochEnd: async (epoch, logs) => { const acc = logs.accuracy ?? logs.acc ?? 0; const valAcc = logs.val_accuracy ?? logs.val_acc ?? 0; els.lossOut.textContent = logs.loss?.toFixed(4) || '—'; els.accOut.textContent = acc.toFixed(4); els.valAccOut.textContent = valAcc.toFixed(4); els.trainProgress.value = Math.round(((epoch + 1) / epochs) * 100); log(`Epoch ${epoch + 1}/${epochs} terminada · loss=${logs.loss?.toFixed(4)} · acc=${acc.toFixed(4)} · val_acc=${valAcc.toFixed(4)}`); if (state.stopRequested) state.classifier.head.stopTraining = true; await tf.nextFrame(); } } });
+      trainDs.xTensor.dispose(); trainDs.yTensor.dispose(); valDs.xTensor.dispose(); valDs.yTensor.dispose(); setTrainState(state.stopRequested ? 'detenido' : 'completado'); log(state.stopRequested ? 'Entrenamiento detenido por el usuario.' : 'Entrenamiento finalizado.');
+    }
+    async function exportModel(){ if (!state.classifier?.head) throw new Error('Entrena primero.'); await state.classifier.head.save(tf.io.withSaveHandler(async artifacts => { const zip = new JSZip(); zip.file('model.json', JSON.stringify(artifacts.modelTopology)); if (artifacts.weightSpecs) zip.file('weights-specs.json', JSON.stringify(artifacts.weightSpecs)); if (artifacts.weightData) zip.file('weights.bin', artifacts.weightData); zip.file('labels.json', JSON.stringify({ labels: state.labels }, null, 2)); zip.file('metadata.json', JSON.stringify({ kind: 'workflow-studio-browser-complete-v2', createdAt: new Date().toISOString(), classes: state.labels, baseModel: els.baseModelSelect.value, backendRequested: state.backendRequested, backendUsed: tf.getBackend() }, null, 2)); const blob = await zip.generateAsync({ type: 'blob' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'workflow-studio-browser-complete-v2-model.zip'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1500); return { modelArtifactsInfo: { dateSaved: new Date(), modelTopologyType: 'JSON', modelTopologyBytes: 0, weightDataBytes: artifacts.weightData?.byteLength || 0 } }; })); log('Modelo exportado en workflow-studio-browser-complete-v2-model.zip'); }
+
+    function topKFromArray(arr, labels, k=3){ return arr.map((v,i)=>({label: labels[i] || `class_${i}`, score: v})).sort((a,b)=>b.score-a.score).slice(0,k); }
+    async function predictDual(img){
+      const custom = tf.tidy(() => { const input = preprocessImage(img); const feat = state.classifier.extract(input); const probs = state.classifier.head.predict(feat); return Array.from(probs.dataSync()); });
+      const basePred = await state.baseModel.classify(img, 3);
+      return { customTop: topKFromArray(custom, state.labels, 3), baseTop: basePred.map(p => ({ label: p.className, score: p.probability })) };
+    }
+    async function predictCustomOnly(img){
+      const custom = tf.tidy(() => { const input = preprocessImage(img); const feat = state.classifier.extract(input); const probs = state.classifier.head.predict(feat); return Array.from(probs.dataSync()); });
+      return { customTop: topKFromArray(custom, state.labels, 3) };
+    }
+    function renderPredictionList(items){ return items.map(it => `<div class="small"><span class="mono">${it.label}</span> · ${(it.score*100).toFixed(2)}%</div>`).join(''); }
+    async function runInference(){
+      if (!state.classifier?.head || !state.baseModel) throw new Error('Entrena primero el modelo.'); const files = Array.from(els.testInput.files || []); if (!files.length) throw new Error('Selecciona al menos una imagen para probar.'); const mode = els.outputModeSelect.value; els.testPreview.innerHTML = ''; const cards = [];
+      for (const file of files){ const url = URL.createObjectURL(file); const img = await loadImage(url); const result = mode === 'dual' ? await predictDual(img) : await predictCustomOnly(img); const bestCustom = result.customTop[0]; cards.push(`<div class="result-card"><img src="${url}" style="width:100%;height:120px;object-fit:cover;border-radius:10px;border:1px solid #334155"><div style="margin-top:8px"><b>Principal:</b> ${bestCustom.label} (${(bestCustom.score*100).toFixed(2)}%)</div><div class="subgrid" style="margin-top:8px"><div><b class="small">Nuevas clases</b>${renderPredictionList(result.customTop)}</div>${mode === 'dual' ? `<div><b class="small">Clases originales</b>${renderPredictionList(result.baseTop)}</div>` : ''}</div></div>`); }
+      els.testPreview.innerHTML = cards.join(''); els.testResults.innerHTML = `<div><b>Inferencia completada.</b> ${files.length} imagen(es) procesadas en modo <b>${mode === 'dual' ? 'dual' : 'solo nuevas'}</b>.</div>`; log(`Inferencia completada para ${files.length} imagen(es) en modo ${mode}.`);
+    }
+
+    els.addCategoryBtn.onclick = addBuilderCategory;
+    els.addImagesBtn.onclick = () => addBuilderImages(els.builderImageInput.files).catch(e => log(e.message));
+    els.openCameraBtn.onclick = () => openBuilderCamera().catch(e => log(e.message));
+    els.captureBtn.onclick = () => captureBuilderPhoto().catch(e => log(e.message));
+    els.closeCameraBtn.onclick = closeBuilderCamera;
+    els.exportDatasetBtn.onclick = () => exportBuilderDataset().catch(e => log(e.message));
+    els.loadBuilderIntoTrainerBtn.onclick = () => loadBuilderIntoTrainer().catch(e => log(e.message));
+    els.loadZipBtn.onclick = async () => { try { const file = els.zipInput.files[0]; if (!file) throw new Error('Selecciona un ZIP.'); await loadZipDataset(file); } catch (e) { log(e.message); } };
+    els.analyzeBtn.onclick = analyzeDataset;
+    els.recommendBtn.onclick = recommendModel;
+    els.applyBackendBtn.onclick = async () => { await chooseBackend(els.backendSelect.value); recommendModel(); };
+    els.trainBtn.onclick = () => trainLocal().catch(e => { setTrainState('error'); log(e.message); });
+    els.stopBtn.onclick = () => { state.stopRequested = true; log('Se detendrá al final de la epoch actual.'); };
+    els.exportBtn.onclick = () => exportModel().catch(e => log(e.message));
+    els.runTestBtn.onclick = () => runInference().catch(e => log(e.message));
+
+    refreshBuilderCategorySelect(); refreshBuilderStats(); initDeviceInfo(); log('Aplicación lista.');
+  </script>
+</body>
+</html>
