@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" />
+  <title>GeoVision Drive 30</title>
+  <style>
+    :root {
+      --bg: #06111d;
+      --panel: rgba(8, 18, 32, 0.82);
+      --panel-2: rgba(10, 22, 38, 0.92);
+      --line: rgba(255,255,255,0.08);
+      --text: #eef6ff;
+      --muted: #9ab3ca;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+      --accent: #60a5fa;
+      --accent-2: #2563eb;
+      --shadow: 0 20px 60px rgba(0,0,0,0.35);
+      --radius: 18px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at top, #12385d 0%, #0a1d32 34%, var(--bg) 100%);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    a { color: inherit; }
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+      overflow: hidden;
+    }
+    #video, #overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #overlay { pointer-events: none; }
+    .top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      padding: max(12px, env(safe-area-inset-top)) 12px 0;
+    }
+    .panel {
+      background: var(--panel);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .hero { padding: 14px; }
+    .heroRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    h1 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+    .sub {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+    .light {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--warn);
+      box-shadow: 0 0 0 5px rgba(245,158,11,0.16);
+      flex: 0 0 auto;
+    }
+    .light.ok {
+      background: var(--ok);
+      box-shadow: 0 0 0 5px rgba(34,197,94,0.16);
+    }
+    .light.bad {
+      background: var(--danger);
+      box-shadow: 0 0 0 5px rgba(239,68,68,0.16);
+    }
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .chip {
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: #dce8f8;
+      font-size: 12px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .btn, .field {
+      min-height: 48px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      font: inherit;
+    }
+    .btn {
+      cursor: pointer;
+      font-weight: 800;
+      color: #fff;
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
+    }
+    .btn.secondary {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+    }
+    .field {
+      background: rgba(255,255,255,0.05);
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .field small {
+      display: block;
+      color: #d6e4f4;
+      font-weight: 700;
+      margin-top: 2px;
+    }
+    .field input {
+      width: 82px;
+      border: 0;
+      background: transparent;
+      outline: none;
+      color: var(--text);
+      text-align: right;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+    .hud {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: calc(48vh + 12px);
+      z-index: 4;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .hudBox {
+      pointer-events: auto;
+      background: rgba(8,18,32,0.6);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 10px 12px;
+      backdrop-filter: blur(12px);
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+      font-size: 12px;
+      color: #dce8f8;
+      box-shadow: var(--shadow);
+    }
+    .focusFrame {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: min(54vw, 280px);
+      height: min(38vh, 230px);
+      transform: translate(-50%, -50%);
+      border: 2px dashed rgba(255,255,255,0.35);
+      border-radius: 20px;
+      z-index: 3;
+      pointer-events: none;
+      box-shadow: inset 0 0 0 9999px rgba(0,0,0,0.08);
+    }
+    .focusLabel {
+      position: absolute;
+      top: -28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(8,18,32,0.82);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: #e8f2ff;
+      white-space: nowrap;
+    }
+    .sheet {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      bottom: max(12px, env(safe-area-inset-bottom));
+      z-index: 5;
+      max-height: 48vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-radius: 22px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(16px);
+      box-shadow: var(--shadow);
+    }
+    .sheetHead {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .sheetHead h2 {
+      margin: 0;
+      font-size: 0.98rem;
+      font-weight: 800;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 3px;
+    }
+    .counter {
+      min-width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      font-weight: 800;
+      background: rgba(96,165,250,0.14);
+      color: #bfdbfe;
+      border: 1px solid rgba(96,165,250,0.18);
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4,1fr);
+      gap: 10px;
+      padding: 12px 16px 4px;
+    }
+    .metric {
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 10px 12px;
+    }
+    .metric .k {
+      font-weight: 800;
+      font-size: 1rem;
+    }
+    .metric .l {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .list {
+      overflow: auto;
+      padding: 12px 16px 16px;
+      display: grid;
+      gap: 10px;
+    }
+    .item {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 16px;
+      padding: 12px;
+    }
+    .itemTop {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .item h3 {
+      margin: 0;
+      font-size: 0.96rem;
+    }
+    .tag {
+      display: inline-flex;
+      margin-top: 6px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(34,197,94,0.14);
+      border: 1px solid rgba(34,197,94,0.16);
+      color: #bbf7d0;
+      font-size: 11px;
+    }
+    .score {
+      font-weight: 800;
+      color: #bfdbfe;
+      white-space: nowrap;
+    }
+    .details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .detail {
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      padding: 8px 10px;
+    }
+    .detail .l {
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+    .detail .v {
+      font-size: 13px;
+      font-weight: 700;
+      word-break: break-word;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .linkBtn {
+      flex: 1 1 140px;
+      min-height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      font-weight: 800;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .linkBtn.primary {
+      background: linear-gradient(180deg, #22c55e, #16a34a);
+      color: white;
+    }
+    .linkBtn.secondary {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+    }
+    .empty {
+      color: var(--muted);
+      text-align: center;
+      padding: 28px 16px;
+    }
+    @media (max-width: 760px) {
+      .grid, .metrics, .details {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+    @media (max-width: 560px) {
+      .grid, .metrics, .details {
+        grid-template-columns: 1fr;
+      }
+      .hud { bottom: calc(52vh + 8px); }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+
+    <div class="focusFrame">
+      <div class="focusLabel">Zona óptima de captura en movimiento</div>
+    </div>
+
+    <div class="top">
+      <div class="panel hero">
+        <div class="heroRow">
+          <div class="brand">
+            <div class="logo">GV</div>
+            <div>
+              <h1>GeoVision Drive 30</h1>
+              <div class="sub">Optimizado para grabar desde un coche a ~30 km/h y guardar objetos estables con acceso a Google Maps.</div>
+            </div>
+          </div>
+          <div id="statusLight" class="light"></div>
+        </div>
+
+        <div class="chips">
+          <div class="chip">🚗 Modo vehículo</div>
+          <div class="chip">🎯 Solo zona central</div>
+          <div class="chip">🧠 Anti-duplicados</div>
+          <div class="chip">📍 GPS + rumbo suavizado</div>
+        </div>
+
+        <div class="grid" style="margin-bottom:10px;">
+          <button id="startBtn" class="btn">Iniciar sesión</button>
+          <button id="finishBtn" class="btn secondary">Finalizar y revisar</button>
+        </div>
+
+        <div class="grid">
+          <div class="field">
+            <div>
+              <label for="distanceInput">Distancia estimada</label>
+              <small>metros</small>
+            </div>
+            <input id="distanceInput" type="number" min="3" step="1" value="18" />
+          </div>
+          <div class="field">
+            <div>
+              <label for="fovInput">FOV horizontal</label>
+              <small>grados</small>
+            </div>
+            <input id="fovInput" type="number" min="20" max="120" step="1" value="58" />
+          </div>
+          <div class="field">
+            <div>
+              <label for="fpsInput">Procesado</label>
+              <small>FPS objetivo</small>
+            </div>
+            <input id="fpsInput" type="number" min="1" max="6" step="1" value="2" />
+          </div>
+          <div class="field">
+            <div>
+              <label for="cooldownInput">Repetición</label>
+              <small>segundos</small>
+            </div>
+            <input id="cooldownInput" type="number" min="1" max="20" step="1" value="5" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hud">
+      <div class="hudBox">
+        <span id="liveState">Esperando inicio</span>
+        <span id="liveSpeed">Velocidad —</span>
+        <span id="liveAccuracy">Precisión GPS —</span>
+        <span id="liveSeen">Visibles 0</span>
+        <span id="liveAccepted">Guardados 0</span>
+      </div>
+    </div>
+
+    <section class="sheet">
+      <div class="sheetHead">
+        <div>
+          <h2>Objetos guardados</h2>
+          <div id="sheetMeta" class="meta">Esta versión prioriza detecciones grandes, centradas y estables.</div>
+        </div>
+        <div id="counter" class="counter">0</div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric"><div id="gpsMetric" class="k">—</div><div class="l">GPS origen</div></div>
+        <div class="metric"><div id="headingMetric" class="k">—</div><div class="l">Rumbo</div></div>
+        <div class="metric"><div id="modeMetric" class="k">Live</div><div class="l">Modo</div></div>
+        <div class="metric"><div id="fpsMetric" class="k">0</div><div class="l">FPS reales</div></div>
+      </div>
+
+      <div id="resultsList" class="list">
+        <div class="empty">Cuando empiece la sesión, esta lista recogerá automáticamente los objetos aceptados y al final podrás abrirlos en Google Maps.</div>
+      </div>
+    </section>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('overlay');
+    const ctx = canvas.getContext('2d');
+    const startBtn = document.getElementById('startBtn');
+    const finishBtn = document.getElementById('finishBtn');
+    const distanceInput = document.getElementById('distanceInput');
+    const fovInput = document.getElementById('fovInput');
+    const fpsInput = document.getElementById('fpsInput');
+    const cooldownInput = document.getElementById('cooldownInput');
+    const statusLight = document.getElementById('statusLight');
+    const sheetMeta = document.getElementById('sheetMeta');
+    const counter = document.getElementById('counter');
+    const gpsMetric = document.getElementById('gpsMetric');
+    const headingMetric = document.getElementById('headingMetric');
+    const modeMetric = document.getElementById('modeMetric');
+    const fpsMetric = document.getElementById('fpsMetric');
+    const resultsList = document.getElementById('resultsList');
+    const liveState = document.getElementById('liveState');
+    const liveSpeed = document.getElementById('liveSpeed');
+    const liveAccuracy = document.getElementById('liveAccuracy');
+    const liveSeen = document.getElementById('liveSeen');
+    const liveAccepted = document.getElementById('liveAccepted');
+
+    let model = null;
+    let stream = null;
+    let watchId = null;
+    let latestPosition = null;
+    let latestHeading = null;
+    let smoothedHeading = null;
+    let running = false;
+    let sessionFinished = false;
+    let currentAccepted = [];
+    let storedItems = [];
+    let seenCache = new Map();
+    let processTimer = null;
+    let fpsSamples = [];
+    let frameCounter = 0;
+    let fpsWindowStart = performance.now();
+    let liveFps = 0;
+
+    function setLight(type) {
+      statusLight.className = 'light' + (type ? ' ' + type : '');
+    }
+
+    function setMeta(text) {
+      sheetMeta.textContent = text;
+    }
+
+    function resizeCanvas() {
+      const rect = video.getBoundingClientRect();
+      canvas.width = rect.width * devicePixelRatio;
+      canvas.height = rect.height * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
+
+    function normalizeDeg(deg) {
+      return (deg % 360 + 360) % 360;
+    }
+
+    function normalizeAngleDelta(a, b) {
+      let d = a - b;
+      while (d > 180) d -= 360;
+      while (d < -180) d += 360;
+      return d;
+    }
+
+    function smoothHeadingValue(newHeading) {
+      if (newHeading == null) return smoothedHeading;
+      if (smoothedHeading == null) {
+        smoothedHeading = newHeading;
+        return smoothedHeading;
+      }
+      const delta = normalizeAngleDelta(newHeading, smoothedHeading);
+      smoothedHeading = normalizeDeg(smoothedHeading + delta * 0.18);
+      return smoothedHeading;
+    }
+
+    function toRad(deg) { return deg * Math.PI / 180; }
+    function toDeg(rad) { return rad * 180 / Math.PI; }
+
+    function destinationPoint(lat, lon, bearingDeg, distanceMeters) {
+      const R = 6371000;
+      const brng = toRad(bearingDeg);
+      const lat1 = toRad(lat);
+      const lon1 = toRad(lon);
+      const dByR = distanceMeters / R;
+      const lat2 = Math.asin(Math.sin(lat1) * Math.cos(dByR) + Math.cos(lat1) * Math.sin(dByR) * Math.cos(brng));
+      const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(dByR) * Math.cos(lat1), Math.cos(dByR) - Math.sin(lat1) * Math.sin(lat2));
+      return { lat: toDeg(lat2), lon: toDeg(lon2) };
+    }
+
+    function prettyName(name) {
+      return name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Objeto';
+    }
+
+    function formatCoord(v, digits = 6) {
+      return typeof v === 'number' && isFinite(v) ? v.toFixed(digits) : '—';
+    }
+
+    function kmhFromPosition(pos) {
+      const speed = pos?.speed;
+      return typeof speed === 'number' && isFinite(speed) && speed >= 0 ? speed * 3.6 : null;
+    }
+
+    function getHeadingFromEvent(event) {
+      if (typeof event.webkitCompassHeading === 'number') return normalizeDeg(event.webkitCompassHeading);
+      if (typeof event.alpha === 'number') return normalizeDeg(360 - event.alpha);
+      return null;
+    }
+
+    function googleMapsUrl(lat, lon) {
+      return 'https://www.google.com/maps?q=' + encodeURIComponent(lat + ',' + lon);
+    }
+
+    function gridKey(lat, lon, size = 0.00008) {
+      return Math.round(lat / size) + ':' + Math.round(lon / size);
+    }
+
+    function isDetectionCentered(bbox) {
+      const [x, y, w, h] = bbox;
+      const cx = x + w / 2;
+      const cy = y + h / 2;
+      const vw = video.clientWidth || canvas.width || 1;
+      const vh = video.clientHeight || canvas.height || 1;
+      const nx = cx / vw;
+      const ny = cy / vh;
+      return nx >= 0.28 && nx <= 0.72 && ny >= 0.22 && ny <= 0.82;
+    }
+
+    function bboxAreaRatio(bbox) {
+      const [, , w, h] = bbox;
+      const vw = video.clientWidth || canvas.width || 1;
+      const vh = video.clientHeight || canvas.height || 1;
+      return (w * h) / (vw * vh);
+    }
+
+    function updateMetrics() {
+      gpsMetric.textContent = latestPosition ? latestPosition.lat.toFixed(5) + ', ' + latestPosition.lon.toFixed(5) : '—';
+      headingMetric.textContent = smoothedHeading != null ? smoothedHeading.toFixed(0) + '°' : '—';
+      modeMetric.textContent = sessionFinished ? 'Finalizado' : (running ? 'Live' : 'Preparado');
+      fpsMetric.textContent = String(liveFps);
+      liveSpeed.textContent = 'Velocidad ' + (kmhFromPosition(latestPosition)?.toFixed(1) ?? '—') + ' km/h';
+      liveAccuracy.textContent = 'Precisión GPS ' + (latestPosition?.accuracy ? '±' + Math.round(latestPosition.accuracy) + ' m' : '—');
+      liveAccepted.textContent = 'Guardados ' + storedItems.length;
+    }
+
+    function drawOverlay(items) {
+      resizeCanvas();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const item of items) {
+        const [x, y, w, h] = item.bbox;
+        ctx.lineWidth = item.accepted ? 2.5 : 1.5;
+        ctx.strokeStyle = item.accepted ? '#22c55e' : 'rgba(255,255,255,0.45)';
+        ctx.fillStyle = item.accepted ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.05)';
+        ctx.strokeRect(x, y, w, h);
+        ctx.fillRect(x, y, w, h);
+        const label = item.label + ' ' + Math.round(item.score * 100) + '%';
+        ctx.font = '600 14px system-ui';
+        const tw = ctx.measureText(label).width + 12;
+        const th = 24;
+        const tx = x;
+        const ty = Math.max(26, y);
+        ctx.fillStyle = item.accepted ? 'rgba(8,18,32,0.92)' : 'rgba(8,18,32,0.74)';
+        ctx.fillRect(tx, ty - th, tw, th);
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText(label, tx + 6, ty - 7);
+      }
+    }
+
+    function renderResults() {
+      counter.textContent = String(storedItems.length);
+      if (!storedItems.length) {
+        resultsList.innerHTML = '<div class="empty">Cuando empiece la sesión, esta lista recogerá automáticamente los objetos aceptados y al final podrás abrirlos en Google Maps.</div>';
+        return;
+      }
+      resultsList.innerHTML = storedItems.map((item, index) => {
+        const maps = googleMapsUrl(item.objLat, item.objLon);
+        return `
+          <article class="item">
+            <div class="itemTop">
+              <div>
+                <h3>${index + 1}. ${item.label}</h3>
+                <div class="tag">Etiqueta detectada: ${item.rawClass}</div>
+              </div>
+              <div class="score">${item.score}</div>
+            </div>
+            <div class="details">
+              <div class="detail"><div class="l">Coordenada estimada</div><div class="v">${item.objLat.toFixed(6)}, ${item.objLon.toFixed(6)}</div></div>
+              <div class="detail"><div class="l">Rumbo / distancia</div><div class="v">${item.bearing.toFixed(1)}° · ${item.distance} m</div></div>
+              <div class="detail"><div class="l">Origen GPS</div><div class="v">${item.srcLat.toFixed(6)}, ${item.srcLon.toFixed(6)}</div></div>
+              <div class="detail"><div class="l">Guardado</div><div class="v">${new Date(item.timestamp).toLocaleString()}</div></div>
+            </div>
+            <div class="actions">
+              <a class="linkBtn primary" href="${maps}" target="_blank" rel="noopener noreferrer">Ir a Google Maps</a>
+              <a class="linkBtn secondary" href="${maps}&layer=c" target="_blank" rel="noopener noreferrer">Ver mapa</a>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    async function requestOrientationPermissionIfNeeded() {
+      try {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          const response = await DeviceOrientationEvent.requestPermission();
+          if (response !== 'granted') throw new Error('Permiso de orientación denegado');
+        }
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+
+    function startOrientationListener() {
+      window.addEventListener('deviceorientation', (event) => {
+        latestHeading = getHeadingFromEvent(event);
+        smoothHeadingValue(latestHeading);
+        updateMetrics();
+      }, true);
+    }
+
+    function startGeolocation() {
+      if (!('geolocation' in navigator)) throw new Error('Geolocalización no soportada');
+      watchId = navigator.geolocation.watchPosition((pos) => {
+        latestPosition = {
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          altitude: pos.coords.altitude,
+          speed: pos.coords.speed,
+          heading: pos.coords.heading,
+          timestamp: pos.timestamp
+        };
+        if ((smoothedHeading == null || !isFinite(smoothedHeading)) && typeof pos.coords.heading === 'number' && !Number.isNaN(pos.coords.heading)) {
+          smoothedHeading = normalizeDeg(pos.coords.heading);
+        }
+        updateMetrics();
+      }, (err) => {
+        setLight('bad');
+        setMeta('Error de geolocalización: ' + err.message);
+      }, {
+        enableHighAccuracy: true,
+        maximumAge: 800,
+        timeout: 10000
+      });
+    }
+
+    async function setupCamera() {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+      video.srcObject = stream;
+      await new Promise((resolve) => { video.onloadedmetadata = () => resolve(); });
+      await video.play();
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+    }
+
+    async function loadModel() {
+      await tf.ready();
+      model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+    }
+
+    function buildGeo(pred) {
+      if (!latestPosition || smoothedHeading == null) return null;
+      const estimatedDistance = Number(distanceInput.value || 18);
+      const fov = Number(fovInput.value || 58);
+      const [x, , w] = pred.bbox;
+      const centerX = x + w / 2;
+      const viewWidth = video.clientWidth || canvas.width || 1;
+      const normalizedX = (centerX / viewWidth) - 0.5;
+      const horizontalAngleOffset = normalizedX * fov;
+      const objectBearing = normalizeDeg(smoothedHeading + horizontalAngleOffset);
+      const point = destinationPoint(latestPosition.lat, latestPosition.lon, objectBearing, estimatedDistance);
+      return {
+        objectBearing,
+        objLat: point.lat,
+        objLon: point.lon,
+        distance: estimatedDistance
+      };
+    }
+
+    function shouldAccept(pred, geo) {
+      if (!geo || !latestPosition) return false;
+      if (pred.score < 0.62) return false;
+      if (!isDetectionCentered(pred.bbox)) return false;
+      if (bboxAreaRatio(pred.bbox) < 0.012) return false;
+      if (latestPosition.accuracy && latestPosition.accuracy > 25) return false;
+      const speed = kmhFromPosition(latestPosition);
+      if (speed != null && speed > 45) return false;
+      return true;
+    }
+
+    function storeDetection(pred, geo) {
+      const now = Date.now();
+      const cell = gridKey(geo.objLat, geo.objLon);
+      const key = pred.class + ':' + cell;
+      const cooldownMs = Number(cooldownInput.value || 5) * 1000;
+      const lastSeen = seenCache.get(key);
+      if (lastSeen && now - lastSeen < cooldownMs) return false;
+      seenCache.set(key, now);
+      storedItems.push({
+        id: crypto.randomUUID ? crypto.randomUUID() : String(now + Math.random()),
+        label: prettyName(pred.class),
+        rawClass: pred.class,
+        score: (pred.score * 100).toFixed(1) + '%',
+        bearing: geo.objectBearing,
+        objLat: geo.objLat,
+        objLon: geo.objLon,
+        distance: geo.distance,
+        srcLat: latestPosition.lat,
+        srcLon: latestPosition.lon,
+        timestamp: new Date().toISOString()
+      });
+      return true;
+    }
+
+    async function processFrame() {
+      if (!running || !model || video.readyState < 2) return;
+      const t0 = performance.now();
+      let predictions = [];
+      try {
+        predictions = await model.detect(video, 12);
+      } catch (err) {
+        console.error(err);
+        return;
+      }
+
+      const ranked = predictions
+        .map((pred) => ({ pred, geo: buildGeo(pred) }))
+        .filter(({ pred }) => pred.score >= 0.50)
+        .sort((a, b) => {
+          const scoreA = a.pred.score + bboxAreaRatio(a.pred.bbox) * 2;
+          const scoreB = b.pred.score + bboxAreaRatio(b.pred.bbox) * 2;
+          return scoreB - scoreA;
+        })
+        .slice(0, 6);
+
+      const overlays = [];
+      let acceptedNow = 0;
+      currentAccepted = [];
+
+      for (const entry of ranked) {
+        const accepted = shouldAccept(entry.pred, entry.geo);
+        overlays.push({
+          bbox: entry.pred.bbox,
+          label: prettyName(entry.pred.class),
+          score: entry.pred.score,
+          accepted
+        });
+        if (!accepted) continue;
+        currentAccepted.push(entry);
+        if (storeDetection(entry.pred, entry.geo)) acceptedNow++;
+      }
+
+      drawOverlay(overlays);
+      renderResults();
+
+      frameCounter++;
+      const now = performance.now();
+      if (now - fpsWindowStart >= 1000) {
+        liveFps = frameCounter;
+        fpsMetric.textContent = String(liveFps);
+        frameCounter = 0;
+        fpsWindowStart = now;
+      }
+
+      liveSeen.textContent = 'Visibles ' + ranked.length;
+      liveAccepted.textContent = 'Guardados ' + storedItems.length;
+      const speed = kmhFromPosition(latestPosition);
+      liveState.textContent = acceptedNow ? 'Captura automática activa' : 'Explorando escena';
+      setMeta(
+        (sessionFinished ? 'Sesión finalizada. ' : 'Sesión activa. ') +
+        'Velocidad ' + (speed != null ? speed.toFixed(1) + ' km/h' : '—') +
+        ' · Objetos visibles ' + ranked.length +
+        ' · Nuevos guardados ' + acceptedNow +
+        ' · Se prioriza el centro para reducir error lateral.'
+      );
+      updateMetrics();
+      const dt = performance.now() - t0;
+      fpsSamples.push(dt);
+      if (fpsSamples.length > 20) fpsSamples.shift();
+      setLight(ranked.length ? 'ok' : '');
+    }
+
+    function startLoop() {
+      stopLoop();
+      const fps = Math.max(1, Math.min(6, Number(fpsInput.value || 2)));
+      const interval = Math.round(1000 / fps);
+      processTimer = setInterval(processFrame, interval);
+    }
+
+    function stopLoop() {
+      if (processTimer) {
+        clearInterval(processTimer);
+        processTimer = null;
+      }
+    }
+
+    function cleanupSession() {
+      stopLoop();
+      running = false;
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+        stream = null;
+      }
+      if (watchId != null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      video.srcObject = null;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    async function startSession() {
+      try {
+        sessionFinished = false;
+        storedItems = [];
+        seenCache = new Map();
+        renderResults();
+        setMeta('Solicitando permisos...');
+        setLight('');
+        await requestOrientationPermissionIfNeeded();
+        startOrientationListener();
+        startGeolocation();
+        await setupCamera();
+        setMeta('Cargando modelo...');
+        await loadModel();
+        running = true;
+        updateMetrics();
+        startLoop();
+        setMeta('Modelo cargado. Detección automática activada para vehículo en movimiento.');
+      } catch (err) {
+        console.error(err);
+        setLight('bad');
+        setMeta('No se pudo iniciar: ' + err.message);
+      }
+    }
+
+    function finishSession() {
+      sessionFinished = true;
+      cleanupSession();
+      setLight(storedItems.length ? 'ok' : 'bad');
+      setMeta(
+        storedItems.length
+          ? 'Sesión finalizada. Revisa la lista y abre cada posición estimada en Google Maps.'
+          : 'Sesión finalizada sin objetos guardados.'
+      );
+      updateMetrics();
+      renderResults();
+    }
+
+    startBtn.addEventListener('click', startSession);
+    finishBtn.addEventListener('click', finishSession);
+    updateMetrics();
+    renderResults();
+  </script>
+</body>
+</html>
