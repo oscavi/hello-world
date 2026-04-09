@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Detección + georreferenciación aproximada</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: rgba(15, 23, 42, 0.82);
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #22c55e;
+      --warn: #f59e0b;
+      --danger: #ef4444;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #000;
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    #wrap {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: #000;
+    }
+
+    video, canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    #ui {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .panel {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      padding: 12px;
+      backdrop-filter: blur(8px);
+      pointer-events: auto;
+    }
+
+    #topPanel {
+      top: 12px;
+    }
+
+    #bottomPanel {
+      bottom: 12px;
+      max-height: 38vh;
+      overflow: auto;
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      background: var(--accent);
+      color: #052e16;
+      font-weight: 700;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+
+    button.secondary {
+      background: #334155;
+      color: var(--text);
+    }
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: 12px;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+
+    input[type="number"] {
+      width: 90px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      padding: 6px 8px;
+    }
+
+    .status {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.4;
+    }
+
+    .ok { color: #86efac; }
+    .bad { color: #fca5a5; }
+    .warnText { color: #fcd34d; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      vertical-align: top;
+    }
+
+    th {
+      color: #cbd5e1;
+      position: sticky;
+      top: 0;
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      background: rgba(255,255,255,0.12);
+      font-size: 12px;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+
+    <div id="ui">
+      <div id="topPanel" class="panel">
+        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+          <button id="startBtn">Iniciar</button>
+          <button id="snapshotBtn" class="secondary">Exportar JSON</button>
+          <label>
+            Distancia estimada (m)
+            <input id="distanceInput" type="number" min="1" step="1" value="15">
+          </label>
+          <label>
+            FOV horizontal (°)
+            <input id="fovInput" type="number" min="20" max="120" step="1" value="60">
+          </label>
+          <span class="pill">Detección local</span>
+          <span class="pill">GPS + brújula</span>
+          <span class="pill">Aproximado</span>
+        </div>
+        <div id="status" class="status">Pulsa “Iniciar”.</div>
+      </div>
+
+      <div id="bottomPanel" class="panel">
+        <div style="font-weight:700; margin-bottom:8px;">Objetos detectados y georreferenciados</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Objeto</th>
+              <th>Conf.</th>
+              <th>GPS origen</th>
+              <th>Rumbo</th>
+              <th>GPS estimado objeto</th>
+              <th>Dist.</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("overlay");
+    const ctx = canvas.getContext("2d");
+    const statusEl = document.getElementById("status");
+    const resultsBody = document.getElementById("resultsBody");
+    const startBtn = document.getElementById("startBtn");
+    const snapshotBtn = document.getElementById("snapshotBtn");
+    const distanceInput = document.getElementById("distanceInput");
+    const fovInput = document.getElementById("fovInput");
+
+    let model = null;
+    let stream = null;
+    let latestPosition = null;
+    let latestHeading = null;
+    let detectLoopRunning = false;
+    let currentRows = [];
+    let watchId = null;
+
+    function setStatus(html) {
+      statusEl.innerHTML = html;
+    }
+
+    function resizeCanvas() {
+      const rect = video.getBoundingClientRect();
+      canvas.width = rect.width * devicePixelRatio;
+      canvas.height = rect.height * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
+
+    function normalizeDeg(deg) {
+      return (deg % 360 + 360) % 360;
+    }
+
+    function toRad(deg) {
+      return deg * Math.PI / 180;
+    }
+
+    function toDeg(rad) {
+      return rad * 180 / Math.PI;
+    }
+
+    function destinationPoint(lat, lon, bearingDeg, distanceMeters) {
+      const R = 6371000;
+      const brng = toRad(bearingDeg);
+      const lat1 = toRad(lat);
+      const lon1 = toRad(lon);
+      const dByR = distanceMeters / R;
+
+      const lat2 = Math.asin(
+        Math.sin(lat1) * Math.cos(dByR) +
+        Math.cos(lat1) * Math.sin(dByR) * Math.cos(brng)
+      );
+
+      const lon2 = lon1 + Math.atan2(
+        Math.sin(brng) * Math.sin(dByR) * Math.cos(lat1),
+        Math.cos(dByR) - Math.sin(lat1) * Math.sin(lat2)
+      );
+
+      return {
+        lat: toDeg(lat2),
+        lon: toDeg(lon2)
+      };
+    }
+
+    function formatCoord(v, digits = 6) {
+      return (typeof v === "number" && isFinite(v)) ? v.toFixed(digits) : "-";
+    }
+
+    function drawBox(pred, geo) {
+      const [x, y, w, h] = pred.bbox;
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = "#22c55e";
+      ctx.fillStyle = "rgba(34,197,94,0.18)";
+      ctx.strokeRect(x, y, w, h);
+      ctx.fillRect(x, y, w, h);
+
+      const label = `${pred.class} ${(pred.score * 100).toFixed(1)}%`;
+      const extra = geo
+        ? ` | az ${geo.objectBearing.toFixed(1)}° | ${geo.objLat.toFixed(6)}, ${geo.objLon.toFixed(6)}`
+        : "";
+      const text = label + extra;
+
+      ctx.font = "14px system-ui";
+      const tw = ctx.measureText(text).width + 12;
+      const th = 20;
+      const tx = x;
+      const ty = Math.max(22, y);
+
+      ctx.fillStyle = "rgba(15,23,42,0.9)";
+      ctx.fillRect(tx, ty - th, tw, th);
+      ctx.fillStyle = "#e2e8f0";
+      ctx.fillText(text, tx + 6, ty - 6);
+    }
+
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function getHeadingFromEvent(event) {
+      if (typeof event.webkitCompassHeading === "number") {
+        return normalizeDeg(event.webkitCompassHeading);
+      }
+
+      if (typeof event.alpha === "number") {
+        return normalizeDeg(360 - event.alpha);
+      }
+
+      return null;
+    }
+
+    function updateResultsTable(rows) {
+      resultsBody.innerHTML = "";
+      for (const row of rows) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${row.class}</td>
+          <td>${row.score}</td>
+          <td>${row.srcLat}, ${row.srcLon}</td>
+          <td>${row.bearing}</td>
+          <td>${row.objLat}, ${row.objLon}</td>
+          <td>${row.distance}</td>
+        `;
+        resultsBody.appendChild(tr);
+      }
+    }
+
+    async function requestOrientationPermissionIfNeeded() {
+      try {
+        if (
+          typeof DeviceOrientationEvent !== "undefined" &&
+          typeof DeviceOrientationEvent.requestPermission === "function"
+        ) {
+          const response = await DeviceOrientationEvent.requestPermission();
+          if (response !== "granted") {
+            throw new Error("Permiso de orientación denegado");
+          }
+        }
+      } catch (err) {
+        console.warn(err);
+      }
+    }
+
+    function startOrientationListener() {
+      window.addEventListener("deviceorientation", (event) => {
+        const heading = getHeadingFromEvent(event);
+        if (heading != null) {
+          latestHeading = heading;
+        }
+      }, true);
+    }
+
+    function startGeolocation() {
+      if (!("geolocation" in navigator)) {
+        throw new Error("Geolocation no soportada");
+      }
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          latestPosition = {
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            altitude: pos.coords.altitude,
+            speed: pos.coords.speed
+          };
+        },
+        (err) => {
+          console.error(err);
+          setStatus(`<span class="bad">Error de geolocalización:</span> ${err.message}`);
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 1000,
+          timeout: 10000
+        }
+      );
+    }
+
+    async function setupCamera() {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+
+      video.srcObject = stream;
+
+      await new Promise((resolve) => {
+        video.onloadedmetadata = () => resolve();
+      });
+
+      await video.play();
+      resizeCanvas();
+      window.addEventListener("resize", resizeCanvas);
+    }
+
+    async function loadModel() {
+      await tf.ready();
+      model = await cocoSsd.load({
+        base: "lite_mobilenet_v2"
+      });
+    }
+
+    function buildGeoForPrediction(pred) {
+      if (!latestPosition || latestHeading == null) {
+        return null;
+      }
+
+      const estimatedDistance = Number(distanceInput.value || 15);
+      const fov = Number(fovInput.value || 60);
+
+      const [x, y, w, h] = pred.bbox;
+      const centerX = x + w / 2;
+
+      const viewWidth = video.clientWidth || canvas.width;
+      const normalizedX = (centerX / viewWidth) - 0.5;
+      const horizontalAngleOffset = normalizedX * fov;
+      const objectBearing = normalizeDeg(latestHeading + horizontalAngleOffset);
+
+      const point = destinationPoint(
+        latestPosition.lat,
+        latestPosition.lon,
+        objectBearing,
+        estimatedDistance
+      );
+
+      return {
+        objectBearing,
+        objLat: point.lat,
+        objLon: point.lon,
+        distance: estimatedDistance
+      };
+    }
+
+    async function detectLoop() {
+      if (detectLoopRunning) return;
+      detectLoopRunning = true;
+
+      while (detectLoopRunning) {
+        if (!model || video.readyState < 2) {
+          await new Promise(r => setTimeout(r, 100));
+          continue;
+        }
+
+        resizeCanvas();
+        clearCanvas();
+
+        let predictions = [];
+        try {
+          predictions = await model.detect(video, 20);
+        } catch (err) {
+          console.error(err);
+        }
+
+        const rows = [];
+        const threshold = 0.55;
+
+        for (const pred of predictions) {
+          if (pred.score < threshold) continue;
+
+          const geo = buildGeoForPrediction(pred);
+          drawBox(pred, geo);
+
+          rows.push({
+            class: pred.class,
+            score: `${(pred.score * 100).toFixed(1)}%`,
+            srcLat: formatCoord(latestPosition?.lat),
+            srcLon: formatCoord(latestPosition?.lon),
+            bearing: geo ? `${geo.objectBearing.toFixed(1)}°` : "-",
+            objLat: geo ? formatCoord(geo.objLat) : "-",
+            objLon: geo ? formatCoord(geo.objLon) : "-",
+            distance: geo ? `${geo.distance} m` : "-"
+          });
+        }
+
+        currentRows = rows;
+        updateResultsTable(rows);
+
+        const gpsTxt = latestPosition
+          ? `GPS ${latestPosition.lat.toFixed(6)}, ${latestPosition.lon.toFixed(6)} (±${Math.round(latestPosition.accuracy)} m)`
+          : "GPS no disponible";
+
+        const headingTxt = latestHeading != null
+          ? `rumbo ${latestHeading.toFixed(1)}°`
+          : "rumbo no disponible";
+
+        setStatus(`
+          <span class="ok">Activo</span> · ${gpsTxt} · ${headingTxt}<br>
+          <span class="warnText">La georreferenciación es aproximada:</span>
+          se usa el centro horizontal de la caja, el rumbo del dispositivo y una distancia fija.
+        `);
+
+        await tf.nextFrame();
+      }
+    }
+
+    function exportJSON() {
+      const payload = {
+        timestamp: new Date().toISOString(),
+        origin: latestPosition,
+        heading: latestHeading,
+        estimatedDistanceMeters: Number(distanceInput.value || 15),
+        horizontalFovDeg: Number(fovInput.value || 60),
+        detections: currentRows
+      };
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json"
+      });
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `detecciones-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    startBtn.addEventListener("click", async () => {
+      try {
+        setStatus("Solicitando permisos...");
+        await requestOrientationPermissionIfNeeded();
+        startOrientationListener();
+        startGeolocation();
+        await setupCamera();
+        setStatus("Cargando modelo de detección...");
+        await loadModel();
+        setStatus("Modelo cargado. Iniciando detección...");
+        detectLoop();
+      } catch (err) {
+        console.error(err);
+        setStatus(`<span class="bad">No se pudo iniciar:</span> ${err.message}`);
+      }
+    });
+
+    snapshotBtn.addEventListener("click", exportJSON);
+  </script>
+</body>
+</html>
