@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coach Motion Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #08111f;
+      --panel: rgba(8, 17, 31, 0.7);
+      --panel-border: rgba(183, 220, 255, 0.16);
+      --text: #edf5ff;
+      --muted: #9fb5ce;
+      --accent: #7cf7cf;
+      --accent-strong: #38d8a0;
+      --shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Manrope", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(56, 216, 160, 0.18), transparent 28%),
+        radial-gradient(circle at 85% 20%, rgba(124, 247, 207, 0.16), transparent 22%),
+        linear-gradient(160deg, #050b16 0%, #0a1324 45%, #09111e 100%);
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .app-shell {
+      width: min(1280px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 40px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.5fr minmax(260px, 0.7fr);
+      gap: 24px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+
+    .hero-copy,
+    .hero-status,
+    .panel,
+    .video-stage {
+      border: 1px solid var(--panel-border);
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+    }
+
+    .hero-copy {
+      padding: 36px;
+      border-radius: 30px;
+    }
+
+    .hero-status,
+    .panel {
+      border-radius: 24px;
+      padding: 24px;
+    }
+
+    .eyebrow,
+    .panel-kicker,
+    .status-label {
+      margin: 0 0 12px;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: 0.73rem;
+      font-weight: 800;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      letter-spacing: -0.04em;
+    }
+
+    h1 {
+      max-width: 11ch;
+      font-size: clamp(2.6rem, 5vw, 4.9rem);
+      line-height: 0.98;
+    }
+
+    h2 {
+      font-size: 1.55rem;
+    }
+
+    .hero-text,
+    .panel-text,
+    .status-text,
+    .feedback-text,
+    .bullet-list,
+    .field span {
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .hero-text {
+      max-width: 58ch;
+      margin: 18px 0 0;
+      font-size: 1.05rem;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .primary-btn,
+    .ghost-btn {
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 22px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+    }
+
+    .primary-btn {
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+      color: #082316;
+    }
+
+    .ghost-btn {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .primary-btn:hover,
+    .ghost-btn:hover {
+      transform: translateY(-1px);
+    }
+
+    .primary-btn:disabled,
+    .ghost-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      font-weight: 800;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.82fr);
+      gap: 24px;
+      align-items: start;
+    }
+
+    .video-stage {
+      position: relative;
+      min-height: 720px;
+      overflow: hidden;
+      border-radius: 32px;
+    }
+
+    #video,
+    #overlay {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: cover;
+    }
+
+    #video {
+      transform: scaleX(-1);
+      opacity: 0.18;
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+    }
+
+    .live-badge {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(8, 17, 31, 0.78);
+      border: 1px solid rgba(124, 247, 207, 0.25);
+      color: var(--accent);
+      font-size: 0.76rem;
+      letter-spacing: 0.18em;
+      font-weight: 800;
+    }
+
+    .control-rail {
+      display: grid;
+      gap: 18px;
+    }
+
+    .field {
+      display: grid;
+      gap: 10px;
+      margin: 18px 0 20px;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .metric-strip,
+    .score-block {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .score-block strong,
+    .metric-strip strong,
+    .field strong {
+      font-size: 1.8rem;
+      font-family: "Space Grotesk", sans-serif;
+    }
+
+    .feedback-text {
+      margin-bottom: 0;
+    }
+
+    .bullet-list {
+      margin: 18px 0 0;
+      padding-left: 18px;
+    }
+
+    .bullet-list li + li {
+      margin-top: 10px;
+    }
+
+    .slim {
+      background: linear-gradient(180deg, rgba(8, 17, 31, 0.82), rgba(8, 17, 31, 0.62));
+    }
+
+    @media (max-width: 1100px) {
+      .hero,
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .video-stage {
+        min-height: 560px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .app-shell {
+        width: min(100% - 20px, 1280px);
+        padding-top: 16px;
+      }
+
+      .hero-copy,
+      .hero-status,
+      .panel {
+        padding: 20px;
+      }
+
+      h1 {
+        max-width: none;
+        font-size: 2.5rem;
+      }
+
+      .video-stage {
+        min-height: 420px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Prueba de concepto</p>
+        <h1>Entrenador virtual con stickman y corrección de movimiento</h1>
+        <p class="hero-text">
+          El entrenador graba una repetición, el sistema extrae una pose completa y luego puntúa en tiempo real cómo la replica el alumno.
+        </p>
+        <div class="hero-actions">
+          <button id="startCameraBtn" class="primary-btn">Activar cámara</button>
+          <button id="resetBtn" class="ghost-btn">Reiniciar sesión</button>
+        </div>
+      </div>
+      <div class="hero-status">
+        <div class="status-label">Estado del sistema</div>
+        <div id="statusPill" class="status-pill">Esperando cámara</div>
+        <p id="statusText" class="status-text">La demo necesita acceso a cámara para detectar la pose del cuerpo.</p>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="video-stage">
+        <video id="video" playsinline autoplay muted></video>
+        <canvas id="overlay"></canvas>
+        <div class="live-badge">LIVE POSE</div>
+      </div>
+
+      <aside class="control-rail">
+        <section class="panel">
+          <div class="panel-header">
+            <p class="panel-kicker">Fase 1</p>
+            <h2>Patrón del entrenador</h2>
+          </div>
+          <p class="panel-text">
+            Graba una secuencia de referencia haciendo el ejercicio completo. Se capturan landmarks normalizados y ángulos articulares.
+          </p>
+          <label class="field">
+            <span>Duración de grabación</span>
+            <input id="recordSeconds" type="range" min="3" max="10" value="5">
+            <strong id="recordSecondsValue">5 s</strong>
+          </label>
+          <button id="recordTrainerBtn" class="primary-btn" disabled>Grabar entrenador</button>
+          <div class="metric-strip">
+            <span>Frames guardados</span>
+            <strong id="trainerFrames">0</strong>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <p class="panel-kicker">Fase 2</p>
+            <h2>Evaluación del alumno</h2>
+          </div>
+          <p class="panel-text">
+            Cuando exista una referencia válida, se comparará contra una ventana móvil de movimiento del alumno.
+          </p>
+          <button id="startStudentBtn" class="primary-btn" disabled>Empezar evaluación</button>
+          <button id="stopStudentBtn" class="ghost-btn" disabled>Detener evaluación</button>
+          <div class="score-block">
+            <span>Corrección global</span>
+            <strong id="scoreValue">--</strong>
+          </div>
+          <p id="feedbackText" class="feedback-text">Primero graba al entrenador para generar el patrón base.</p>
+        </section>
+
+        <section class="panel slim">
+          <div class="panel-header">
+            <p class="panel-kicker">Detalle</p>
+            <h2>Qué compara la POC</h2>
+          </div>
+          <ul class="bullet-list">
+            <li>Postura relativa del cuerpo, independiente de distancia a cámara.</li>
+            <li>Ángulos de hombros, codos, caderas y rodillas.</li>
+            <li>Ritmo del gesto mediante remuestreo temporal de la secuencia.</li>
+          </ul>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script type="module">
+    import {
+      FilesetResolver,
+      PoseLandmarker
+    } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22";
+
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("overlay");
+    const ctx = canvas.getContext("2d");
+
+    const startCameraBtn = document.getElementById("startCameraBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const recordTrainerBtn = document.getElementById("recordTrainerBtn");
+    const startStudentBtn = document.getElementById("startStudentBtn");
+    const stopStudentBtn = document.getElementById("stopStudentBtn");
+    const statusPill = document.getElementById("statusPill");
+    const statusText = document.getElementById("statusText");
+    const feedbackText = document.getElementById("feedbackText");
+    const scoreValue = document.getElementById("scoreValue");
+    const trainerFrames = document.getElementById("trainerFrames");
+    const recordSeconds = document.getElementById("recordSeconds");
+    const recordSecondsValue = document.getElementById("recordSecondsValue");
+
+    const POSE_CONNECTIONS = [
+      [0, 1], [1, 2], [2, 3], [3, 7],
+      [0, 4], [4, 5], [5, 6], [6, 8],
+      [9, 10],
+      [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21],
+      [12, 14], [14, 16], [16, 18], [16, 20], [16, 22],
+      [11, 23], [12, 24], [23, 24],
+      [23, 25], [24, 26], [25, 27], [26, 28],
+      [27, 29], [29, 31], [28, 30], [30, 32]
+    ];
+
+    const LANDMARK_KEYS = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+    const MIN_VISIBILITY = 0.35;
+    const TARGET_SAMPLES = 24;
+
+    let poseLandmarker;
+    let stream;
+    let animationFrameId;
+    let lastVideoTime = -1;
+    let cameraReady = false;
+    let recordingTrainer = false;
+    let evaluatingStudent = false;
+    let trainerReference = [];
+    let studentWindow = [];
+    let recordTimeout;
+
+    recordSecondsValue.textContent = `${recordSeconds.value} s`;
+    video.muted = true;
+    video.autoplay = true;
+    video.setAttribute("playsinline", "true");
+
+    recordSeconds.addEventListener("input", () => {
+      recordSecondsValue.textContent = `${recordSeconds.value} s`;
+    });
+
+    startCameraBtn.addEventListener("click", initExperience);
+    resetBtn.addEventListener("click", resetSession);
+    recordTrainerBtn.addEventListener("click", captureTrainerSequence);
+    startStudentBtn.addEventListener("click", () => {
+      evaluatingStudent = true;
+      studentWindow = [];
+      scoreValue.textContent = "--";
+      feedbackText.textContent = "Analizando el movimiento del alumno en tiempo real.";
+      setStatus("Evaluando alumno", "Sigue la referencia frente a cámara.");
+      startStudentBtn.disabled = true;
+      stopStudentBtn.disabled = false;
+    });
+    stopStudentBtn.addEventListener("click", () => {
+      evaluatingStudent = false;
+      studentWindow = [];
+      scoreValue.textContent = "--";
+      feedbackText.textContent = "Evaluación detenida. Puedes reiniciarla cuando quieras.";
+      setStatus("Referencia lista", "La secuencia del entrenador sigue cargada.");
+      startStudentBtn.disabled = trainerReference.length === 0;
+      stopStudentBtn.disabled = true;
+    });
+
+    window.addEventListener("load", () => {
+      window.setTimeout(() => {
+        if (!cameraReady) {
+          initExperience();
+        }
+      }, 500);
+    });
+
+    async function initExperience() {
+      if (cameraReady) {
+        return;
+      }
+
+      try {
+        if (!window.isSecureContext) {
+          throw new Error("secure-context-required");
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("camera-api-unavailable");
+        }
+
+        setStatus("Cargando modelo", "Inicializando el detector de pose en el navegador.");
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22/wasm"
+        );
+
+        poseLandmarker = await PoseLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task"
+          },
+          runningMode: "VIDEO",
+          numPoses: 1
+        });
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user"
+          },
+          audio: false
+        });
+
+        video.srcObject = stream;
+        await video.play();
+        syncCanvasSize();
+        cameraReady = true;
+        recordTrainerBtn.disabled = false;
+        startCameraBtn.disabled = true;
+        setStatus("Cámara activa", "Ya puedes grabar la demostración del entrenador.");
+        renderLoop();
+      } catch (error) {
+        console.error(error);
+        handleInitError(error);
+      }
+    }
+
+    function syncCanvasSize() {
+      const { videoWidth, videoHeight } = video;
+      canvas.width = videoWidth || 1280;
+      canvas.height = videoHeight || 720;
+    }
+
+    function renderLoop() {
+      if (!poseLandmarker || video.readyState < 2) {
+        animationFrameId = requestAnimationFrame(renderLoop);
+        return;
+      }
+
+      if (video.currentTime !== lastVideoTime) {
+        lastVideoTime = video.currentTime;
+        const result = poseLandmarker.detectForVideo(video, performance.now());
+        drawScene(result);
+        const frameData = extractFrameData(result);
+
+        if (recordingTrainer && frameData) {
+          trainerReference.push(frameData);
+          trainerFrames.textContent = String(trainerReference.length);
+        }
+
+        if (evaluatingStudent && frameData && trainerReference.length > 8) {
+          studentWindow.push(frameData);
+          if (studentWindow.length > trainerReference.length) {
+            studentWindow.shift();
+          }
+
+          if (studentWindow.length >= 8) {
+            const score = compareSequences(trainerReference, studentWindow);
+            updateStudentFeedback(score);
+          }
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(renderLoop);
+    }
+
+    function drawScene(result) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save();
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+      ctx.fillStyle = "rgba(6, 14, 24, 0.84)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      if (result.landmarks?.length) {
+        const landmarks = result.landmarks[0];
+        drawSkeleton(landmarks);
+        drawNodes(landmarks);
+      }
+
+      ctx.restore();
+    }
+
+    function drawSkeleton(landmarks) {
+      ctx.strokeStyle = "rgba(124, 247, 207, 0.95)";
+      ctx.lineWidth = 4;
+      ctx.lineCap = "round";
+
+      for (const [start, end] of POSE_CONNECTIONS) {
+        const a = landmarks[start];
+        const b = landmarks[end];
+        if (!isVisible(a) || !isVisible(b)) {
+          continue;
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(a.x * canvas.width, a.y * canvas.height);
+        ctx.lineTo(b.x * canvas.width, b.y * canvas.height);
+        ctx.stroke();
+      }
+    }
+
+    function drawNodes(landmarks) {
+      for (const point of landmarks) {
+        if (!isVisible(point)) {
+          continue;
+        }
+
+        ctx.beginPath();
+        ctx.arc(point.x * canvas.width, point.y * canvas.height, 5.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#edf5ff";
+        ctx.fill();
+      }
+    }
+
+    function isVisible(point) {
+      return point && (point.visibility ?? 1) >= MIN_VISIBILITY;
+    }
+
+    function extractFrameData(result) {
+      if (!result.landmarks?.length) {
+        return null;
+      }
+
+      const landmarks = result.landmarks[0];
+      const leftHip = landmarks[23];
+      const rightHip = landmarks[24];
+      const leftShoulder = landmarks[11];
+      const rightShoulder = landmarks[12];
+
+      if (![leftHip, rightHip, leftShoulder, rightShoulder].every(isVisible)) {
+        return null;
+      }
+
+      const hipCenter = midpoint(leftHip, rightHip);
+      const shoulderCenter = midpoint(leftShoulder, rightShoulder);
+      const bodyScale = distance(hipCenter, shoulderCenter) || 0.25;
+
+      const normalizedLandmarks = LANDMARK_KEYS.flatMap((index) => {
+        const point = landmarks[index];
+        if (!isVisible(point)) {
+          return [0, 0];
+        }
+
+        return [
+          (point.x - hipCenter.x) / bodyScale,
+          (point.y - hipCenter.y) / bodyScale
+        ];
+      });
+
+      const angles = [
+        calcAngle(landmarks[11], landmarks[13], landmarks[15]),
+        calcAngle(landmarks[12], landmarks[14], landmarks[16]),
+        calcAngle(landmarks[13], landmarks[11], landmarks[23]),
+        calcAngle(landmarks[14], landmarks[12], landmarks[24]),
+        calcAngle(landmarks[11], landmarks[23], landmarks[25]),
+        calcAngle(landmarks[12], landmarks[24], landmarks[26]),
+        calcAngle(landmarks[23], landmarks[25], landmarks[27]),
+        calcAngle(landmarks[24], landmarks[26], landmarks[28])
+      ].map((angle) => angle / 180);
+
+      return [...normalizedLandmarks, ...angles];
+    }
+
+    function midpoint(a, b) {
+      return {
+        x: (a.x + b.x) / 2,
+        y: (a.y + b.y) / 2
+      };
+    }
+
+    function distance(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function calcAngle(a, b, c) {
+      if (![a, b, c].every(isVisible)) {
+        return 0;
+      }
+
+      const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+      let angle = Math.abs(radians * 180 / Math.PI);
+      if (angle > 180) {
+        angle = 360 - angle;
+      }
+      return angle;
+    }
+
+    function captureTrainerSequence() {
+      if (!cameraReady || recordingTrainer) {
+        return;
+      }
+
+      clearTimeout(recordTimeout);
+      trainerReference = [];
+      studentWindow = [];
+      evaluatingStudent = false;
+      trainerFrames.textContent = "0";
+      scoreValue.textContent = "--";
+      feedbackText.textContent = "Grabando al entrenador. Haz una repetición clara del ejercicio.";
+      setStatus("Grabando entrenador", "Se está construyendo la referencia de movimiento.");
+      recordTrainerBtn.disabled = true;
+      startStudentBtn.disabled = true;
+      stopStudentBtn.disabled = true;
+      recordingTrainer = true;
+
+      recordTimeout = window.setTimeout(() => {
+        recordingTrainer = false;
+        trainerReference = normalizeSequence(trainerReference);
+        trainerFrames.textContent = String(trainerReference.length);
+
+        if (trainerReference.length < 8) {
+          setStatus("Grabación insuficiente", "No se detectó movimiento suficiente. Repite la captura.");
+          feedbackText.textContent = "Hace falta una secuencia más larga y bien visible para usarla como patrón.";
+          recordTrainerBtn.disabled = false;
+          return;
+        }
+
+        setStatus("Referencia lista", "El patrón del entrenador ya está preparado para comparar.");
+        feedbackText.textContent = "Patrón generado. Ahora pulsa \"Empezar evaluación\" para analizar al alumno.";
+        recordTrainerBtn.disabled = false;
+        startStudentBtn.disabled = false;
+      }, Number(recordSeconds.value) * 1000);
+    }
+
+    function normalizeSequence(sequence) {
+      if (sequence.length === 0) {
+        return [];
+      }
+
+      if (sequence.length === TARGET_SAMPLES) {
+        return sequence;
+      }
+
+      const output = [];
+      for (let i = 0; i < TARGET_SAMPLES; i += 1) {
+        const position = (i / Math.max(TARGET_SAMPLES - 1, 1)) * Math.max(sequence.length - 1, 0);
+        const low = Math.floor(position);
+        const high = Math.min(Math.ceil(position), sequence.length - 1);
+        const alpha = position - low;
+        output.push(lerpVector(sequence[low], sequence[high], alpha));
+      }
+      return output;
+    }
+
+    function lerpVector(a, b, alpha) {
+      return a.map((value, index) => value + (b[index] - value) * alpha);
+    }
+
+    function compareSequences(referenceSequence, liveSequence) {
+      const ref = normalizeSequence(referenceSequence);
+      const live = normalizeSequence(liveSequence);
+
+      let positionDiff = 0;
+      let angleDiff = 0;
+
+      for (let i = 0; i < TARGET_SAMPLES; i += 1) {
+        const refFrame = ref[i];
+        const liveFrame = live[i];
+        for (let j = 0; j < LANDMARK_KEYS.length * 2; j += 1) {
+          positionDiff += Math.abs(refFrame[j] - liveFrame[j]);
+        }
+        for (let j = LANDMARK_KEYS.length * 2; j < refFrame.length; j += 1) {
+          angleDiff += Math.abs(refFrame[j] - liveFrame[j]);
+        }
+      }
+
+      const avgPositionDiff = positionDiff / (TARGET_SAMPLES * LANDMARK_KEYS.length * 2);
+      const avgAngleDiff = angleDiff / (TARGET_SAMPLES * 8);
+      const combinedError = avgPositionDiff * 0.65 + avgAngleDiff * 0.35;
+      return Math.max(0, Math.min(100, Math.round(100 - combinedError * 120)));
+    }
+
+    function updateStudentFeedback(score) {
+      scoreValue.textContent = `${score}%`;
+
+      if (score >= 85) {
+        feedbackText.textContent = "Muy buena ejecución: postura y ritmo cercanos a la referencia.";
+        setStatus("Alumno alineado", "La comparación en tiempo real detecta un gesto sólido.");
+        return;
+      }
+
+      if (score >= 70) {
+        feedbackText.textContent = "Corrección aceptable. Ajusta la amplitud del movimiento para acercarte más al patrón.";
+        setStatus("Ajuste fino", "La pose es razonable, pero aún hay diferencias medibles.");
+        return;
+      }
+
+      if (score >= 50) {
+        feedbackText.textContent = "Desviación moderada. Revisa sobre todo brazos, cadera y sincronización del gesto.";
+        setStatus("Necesita corrección", "El sistema detecta diferencias claras respecto al entrenador.");
+        return;
+      }
+
+      feedbackText.textContent = "Desajuste alto. Conviene repetir el movimiento más despacio y manteniendo el cuerpo visible.";
+      setStatus("Movimiento incorrecto", "La referencia y la ejecución actual no coinciden lo suficiente.");
+    }
+
+    function setStatus(pill, text) {
+      statusPill.textContent = pill;
+      statusText.textContent = text;
+    }
+
+    function handleInitError(error) {
+      const message = String(error?.message || error?.name || error || "");
+
+      if (message.includes("secure-context-required")) {
+        setStatus("Contexto no seguro", "La cámara solo funciona en localhost o HTTPS.");
+        feedbackText.textContent = "Abre la demo desde localhost o un dominio HTTPS para que el navegador permita la cámara.";
+        return;
+      }
+
+      if (message.includes("camera-api-unavailable")) {
+        setStatus("API no disponible", "Este navegador integrado no expone getUserMedia.");
+        feedbackText.textContent = "Prueba a abrir la misma URL en Chrome o Edge, porque el navegador interno parece no ofrecer acceso a cámara.";
+        return;
+      }
+
+      if (message.includes("NotAllowedError") || message.includes("Permission denied")) {
+        setStatus("Permiso denegado", "El navegador no tiene permiso para usar la cámara.");
+        feedbackText.textContent = "Acepta el permiso de cámara del navegador o revisa la configuración del sistema.";
+        return;
+      }
+
+      if (message.includes("NotFoundError") || message.includes("Requested device not found")) {
+        setStatus("Sin cámara detectada", "No se encontró ningún dispositivo de vídeo disponible.");
+        feedbackText.textContent = "Conecta una webcam o revisa si otra aplicación la está usando.";
+        return;
+      }
+
+      if (message.includes("NotReadableError") || message.includes("TrackStartError")) {
+        setStatus("Cámara ocupada", "Otra aplicación está bloqueando el dispositivo.");
+        feedbackText.textContent = "Cierra Zoom, Teams, OBS u otras apps que puedan tener la cámara abierta y vuelve a intentarlo.";
+        return;
+      }
+
+      setStatus("Error de cámara", "No se pudo iniciar la demo. Revisa permisos, conexión y compatibilidad.");
+      feedbackText.textContent = `Detalle técnico: ${message || "fallo desconocido"}`;
+    }
+
+    function resetSession() {
+      clearTimeout(recordTimeout);
+      trainerReference = [];
+      studentWindow = [];
+      recordingTrainer = false;
+      evaluatingStudent = false;
+      trainerFrames.textContent = "0";
+      scoreValue.textContent = "--";
+      feedbackText.textContent = "Sesión reiniciada. Activa la cámara o vuelve a grabar la referencia.";
+      startStudentBtn.disabled = true;
+      stopStudentBtn.disabled = true;
+      recordTrainerBtn.disabled = !cameraReady;
+      setStatus(
+        cameraReady ? "Cámara activa" : "Esperando cámara",
+        cameraReady
+          ? "Puedes empezar una nueva grabación del entrenador."
+          : "La demo necesita acceso a cámara para detectar la pose del cuerpo."
+      );
+    }
+
+    window.addEventListener("resize", syncCanvasSize);
+    window.addEventListener("beforeunload", () => {
+      cancelAnimationFrame(animationFrameId);
+      clearTimeout(recordTimeout);
+      stream?.getTracks().forEach((track) => track.stop());
+    });
+  </script>
+</body>
+</html>
